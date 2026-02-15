@@ -1,6 +1,6 @@
 /**
  * CS生産性タブ 自動集計スクリプト
- * 対象: 田中春奈、平松弥央菜、小林陽香、小林未侑、中田菜々子、久保梨生、宇梶知恵、増子真也子、田中里奈、山下優花
+ * 対象: 田中春奈、平松弥央菜、小林陽香、小林未侑、中田菜々子、久保梨生、宇梶知恵、増子真也子、田中里奈、山下優花、中村八重子
  *
  * A列: 年月（月の先頭行のみ）
  * B列: メンバー名（全行に記載）
@@ -30,6 +30,7 @@ var MEMBERS = [
   { ssId: '1l0S0Cgr4mgmOGq6Rdwsc65OgTQiUqllmzlTFGt1Fw34', name: '増子真也子' },
   { ssId: '1Q_u5T3h-9BHKDWrxUowB6C_zFRYUifR4hvDwq-RkWbc', name: '田中里奈' },
   { ssId: '1MaaS2V8L0KU48-0pPql9_0Sl5nE9aj6Rm6d5ONbTvFk', name: '山下優花' },
+  { ssId: '1Tu8IYFlSl4xUAQp6Adsl1XoaAw7yCQ_qBR6jDfVHx2c', name: '中村八重子' },
 ];
 
 // スキップするシート名キーワード
@@ -226,6 +227,17 @@ function parseSheetDate(sheetName) {
     month = parseInt(sheetName.substring(0, 2), 10);
     day = parseInt(sheetName.substring(2, 4), 10);
     if (month >= 1 && month <= 12 && day >= 1 && day <= 31) {
+      return { year: getYear(month), month: month, day: day };
+    }
+    return null;
+  }
+
+  // パターン2b: 3桁数字（例: 215 → 2月15日、110 → 1月10日）
+  var match3 = sheetName.match(/^(\d{3})$/);
+  if (match3) {
+    month = parseInt(sheetName.substring(0, 1), 10);
+    day = parseInt(sheetName.substring(1, 3), 10);
+    if (month >= 1 && month <= 9 && day >= 1 && day <= 31) {
       return { year: getYear(month), month: month, day: day };
     }
     return null;
