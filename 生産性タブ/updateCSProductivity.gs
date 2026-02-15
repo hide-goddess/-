@@ -1,6 +1,6 @@
 /**
  * CS生産性タブ 自動集計スクリプト
- * 対象: 田中春奈、平松弥央菜、小林陽香、小林未侑
+ * 対象: 田中春奈、平松弥央菜、小林陽香、小林未侑、中田菜々子
  *
  * A列: 年月（月の先頭行のみ）
  * B列: メンバー名（全行に記載）
@@ -24,6 +24,7 @@ var MEMBERS = [
   { ssId: '1mPtv-l2u3JKBpKcRG0JZc5bSqw2e630vkfI-Je04Y6k', name: '平松弥央菜' },
   { ssId: '1OJJbpaFjmJQtAngQW3ZUYZOLqj-wJzFxTo1r0OfFtpc', name: '小林陽香' },
   { ssId: '1uucx-hS0G8IuDkKkokKu2JvNhIc0Ae35rH9tERZ6eJY', name: '小林未侑' },
+  { ssId: '1joyW47gyikwF1tRTRfgiy-ldcsNKef73Ne4JAE1Lvhs', name: '中田菜々子' },
 ];
 
 // スキップするシート名キーワード
