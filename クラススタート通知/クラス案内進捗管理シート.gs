@@ -1,18 +1,14 @@
 // クラススタート通知 → Discord送信スクリプト
-// スプシ2の「クラススタート」タブ編集時に起動
+// スプシ3の全タブ編集時に起動
 /**
  * 編集時に動くメインの関数
- * スプシ2の「クラススタート」タブのR列が「スタート」に変更されたときにDiscordへ通知
+ * スプシ3の全タブのR列が「スタート」に変更されたときにDiscordへ通知
  */
 function postToDiscordOnEdit(e) {
   // 1. エラー回避：eオブジェクトがない場合（手動実行時など）は終了
   if (!e) return;
   var range = e.range;
   var sheet = range.getSheet();
-  // シート名が「クラススタート」でなければ何もしない
-  if (sheet.getName() !== "クラススタート") {
-    return;
-  }
   // 2. 条件チェック
   // 編集されたのが「R列(18列目)」かつ、値が「スタート」であるか？
   if (range.getColumn() !== 18 || e.value !== "スタート") {
@@ -42,8 +38,9 @@ function postToDiscordOnEdit(e) {
     // O列 + P列 + 共同運用者の組数を合計
     totalCount = totalCount + coOperatorGroupCount;
   }
-  // 5. 送信するメッセージを作成（ID11のメンションは削除済み）
-  var messageContent = "新クラススタート通知です！\n" +
+  // 5. 送信するメッセージを作成（ID11のメンション付き）
+  var messageContent = "<@1394490476488298568>\n" +
+    "新クラススタート通知です！\n" +
     className + classAlpha + "組　" + totalCount + "名\n";
   // 共同運用者がある場合はメッセージに追加
   if (coOperatorText !== "") {
@@ -123,10 +120,10 @@ function extractMembers(text) {
  * Discord送信用のサブ関数
  */
 function sendToDiscord(text) {
-  // ウェブフックURL2
-  var webhookUrl = "https://discord.com/api/webhooks/1469964798539071626/ZWs7XKqk4urHoWnemh_B9L0mgP7vVnaVRXDFEqzJKHtSHVjMvbgqMDffWqjWu4Qp6nz-";
-  // スレッドID2
-  var threadId = "1445399709312090236";
+  // ウェブフックURL3
+  var webhookUrl = "https://discord.com/api/webhooks/1469967076906242068/aJ-tCA_CWTCUgFdcrPdYz-tjz7woQMnn_hNZeG76Dypb7Uk0Izu51iCbkpMrS9vFGeyl";
+  // スレッドID3
+  var threadId = "1362697796976775302";
   var targetUrl = webhookUrl + "?thread_id=" + threadId;
   var payload = {
     content: text
