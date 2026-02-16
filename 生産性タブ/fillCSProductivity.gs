@@ -1,5 +1,5 @@
 /**
- * CS生産性タブ G,H,I,J,K,L列 自動記入スクリプト（v12）
+ * CS生産性タブ G,H,I,J,K,L列 自動記入スクリプト（v13）
  *
  * 【処理内容】
  *  G列 = B列（メンバー）と同じ
@@ -8,11 +8,17 @@
  *  J列 = B列のメンバー名でタスクタブG列の担当者と照合し、
  *         合致する行のF列からE列の内容に類似するタスク名を抽出
  *  K列 = F列（カテゴリー）と同じ
- *  L列 = J列で特定したタスクタブの行のI列（推定時間）÷ G列の担当者人数
+ *  L列 = (タスクタブI列の推定時間 ÷ G列の担当者人数) × H列の月あたり頻度回数
  *  C列「総時間」行 → G列のみ、H〜L空欄
  *  データ末尾にメンバーごとのK列・L列合計一覧 + 全体合計を追加
  *
- * 【v12 変更点】
+ * 【v13 変更点】
+ *  1. L列の推定時間にタスクタブH列（頻度）を考慮するよう変更
+ *     計算式: (I列の時間 ÷ G列の担当者人数) × 月あたり頻度回数
+ *     例: I列=1.5h, G列=4名, H列=月1 → 1.5h÷4人×1回 = 22.5m
+ *     例: I列=30m, G列=2名, H列=毎日 → 30m÷2人×20日 = 5h
+ *
+ * 【v12 以前の変更点】
  *  1. 全メンバーを名前エイリアス付きで定義し、各メンバーごとに
  *     自分が担当するタスクから類似検索するように変更
  *  2. 通常メンバー → 全タスク洗い出しタブのみから検索
@@ -180,12 +186,13 @@ function fillCSProductivity() {
     const colJ = bestMatch ? bestMatch.taskName : "";
     const colK = colF;
 
-    // 【変更3】L列 = タスクタブI列の時間 ÷ G列の担当者人数
+    // 【変更3】L列 = (タスクタブI列の時間 ÷ G列の担当者人数) × H列の月あたり頻度回数
     let colL = "";
     if (bestMatch && bestMatch.estimatedTime !== "") {
       const rawMinutes = cspParseTimeToMinutes(bestMatch.estimatedTime);
       const assigneeCount = bestMatch.assigneeCount || 1;
-      const adjustedMinutes = rawMinutes / assigneeCount;
+      const monthlyFreq = cspParseFrequencyToMonthly(bestMatch.frequency);
+      const adjustedMinutes = (rawMinutes / assigneeCount) * monthlyFreq;
       colL = cspFormatMinutesToTime(adjustedMinutes);
     }
 
@@ -268,6 +275,7 @@ function cspBuildTaskObject(row, rowIndex, source) {
     taskName: String(row[5]).trim(),       // F列（タスク名）
     assignee: assigneeStr,
     assigneeCount: assigneeCount,
+    frequency: String(row[7]).trim(),      // H列（頻度）
     estimatedTime: String(row[8]).trim()   // I列（推定時間）
   };
 }
@@ -330,6 +338,63 @@ function cspFormatMinutesToTime(minutes) {
   if (hours > 0 && mins > 0) return hours + "h" + mins + "m";
   if (hours > 0) return hours + "h";
   return mins + "m";
+}
+
+// ================================================================
+// 頻度→月あたり回数 変換関数
+// ================================================================
+
+/**
+ * H列の頻度文字列を月あたりの回数に変換する
+ *
+ * 【変換ルール】
+ *   毎日       → 20（月の営業日数）
+ *   週5 / 週5回 → 20（5日×4週）
+ *   週4 / 週4回 → 16（4日×4週）
+ *   週3 / 週3回 → 12（3日×4週）
+ *   週2 / 週2回 → 8 （2日×4週）
+ *   週1 / 週1回 → 4 （1日×4週）
+ *   隔週       → 2 （月2回）
+ *   月1 / 月1回 → 1
+ *   月2 / 月2回 → 2
+ *   月3 / 月3回 → 3
+ *   月4 / 月4回 → 4
+ *   年1 / 年1回 → 1/12 ≒ 0.083
+ *   年2 / 年2回 → 2/12 ≒ 0.167
+ *   随時 / 不定期 / 都度 → 1（月1回相当として扱う）
+ *   空欄 / 不明  → 1（デフォルト: 月1回）
+ *
+ * @param {string} freqStr - 頻度文字列（例: "毎日", "週1", "月2"）
+ * @return {number} 月あたりの回数
+ */
+function cspParseFrequencyToMonthly(freqStr) {
+  if (!freqStr) return 1;
+  const s = String(freqStr).trim().toLowerCase().replace(/\s+/g, "");
+  if (s === "" ) return 1;
+
+  // 毎日
+  if (s.indexOf("毎日") !== -1) return 20;
+
+  // 週N / 週N回
+  const weekMatch = s.match(/週(\d+)/);
+  if (weekMatch) return parseInt(weekMatch[1], 10) * 4;
+
+  // 隔週
+  if (s.indexOf("隔週") !== -1) return 2;
+
+  // 月N / 月N回
+  const monthMatch = s.match(/月(\d+)/);
+  if (monthMatch) return parseInt(monthMatch[1], 10);
+
+  // 年N / 年N回
+  const yearMatch = s.match(/年(\d+)/);
+  if (yearMatch) return parseInt(yearMatch[1], 10) / 12;
+
+  // 随時・不定期・都度 → 月1回相当
+  if (s.indexOf("随時") !== -1 || s.indexOf("不定期") !== -1 || s.indexOf("都度") !== -1) return 1;
+
+  // デフォルト
+  return 1;
 }
 
 // ================================================================
