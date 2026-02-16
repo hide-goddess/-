@@ -1,21 +1,24 @@
 /**
- * CS生産性タブ G,H,I,J,K,L列 自動記入スクリプト（v11）
+ * CS生産性タブ G,H,I,J,K,L列 自動記入スクリプト（v12）
  *
  * 【処理内容】
  *  G列 = B列（メンバー）と同じ
  *  H列 = J列で特定したタスクタブの行のD列（中カテゴリ）
  *  I列 = 空欄
- *  J列 = E列の内容 × 全タスク洗い出し/イベント運用_CTO用タブから類似タスクを抽出
+ *  J列 = B列のメンバー名でタスクタブG列の担当者と照合し、
+ *         合致する行のF列からE列の内容に類似するタスク名を抽出
  *  K列 = F列（カテゴリー）と同じ
  *  L列 = J列で特定したタスクタブの行のI列（推定時間）÷ G列の担当者人数
  *  C列「総時間」行 → G列のみ、H〜L空欄
  *  データ末尾にメンバーごとのK列・L列合計一覧 + 全体合計を追加
  *
- * 【v11 変更点】
- *  1. L列が空欄の行はK列の実働時間を合計に含めない
- *  2. 兼業メンバー（小林未侑、中村八重子、松元陸）は全タスク洗い出し＋イベント運用_CTO用
- *     の両タブから検索しベストマッチを出力
- *  3. L列の平均タスク時間 = タスクタブI列の時間 ÷ タスクタブG列の担当者人数
+ * 【v12 変更点】
+ *  1. 全メンバーを名前エイリアス付きで定義し、各メンバーごとに
+ *     自分が担当するタスクから類似検索するように変更
+ *  2. 通常メンバー → 全タスク洗い出しタブのみから検索
+ *  3. 兼業メンバー（小林未侑、中村八重子、松元陸）→ 両タブから検索（従来通り）
+ *  4. L列が空欄の行はK列の実働時間を合計に含めない
+ *  5. L列の平均タスク時間 = タスクタブI列の時間 ÷ タスクタブG列の担当者人数
  */
 
 // ===== 設定 =====
@@ -24,14 +27,27 @@ const CSP_TASK_SHEET_NAME = "全タスクの洗い出し";
 const CSP_EVENT_SHEET_NAME = "イベント運営_CTO用";
 const CSP_HEADER_ROW = 12;
 const CSP_DATA_START_ROW = 13;
-const CSP_TARGET_PERSON = "はるな";
 
-// 兼業メンバー定義（生産性タブの名前 → 両タブで検索する名前のバリエーション）
-const CSP_DUAL_MEMBERS = {
+// 全メンバー定義（CS生産性タブB列の名前 → タスクタブG列で検索するエイリアス）
+const CSP_MEMBER_ALIASES = {
+  "田中春奈": ["はるな"],
+  "平松弥央菜": ["みおな"],
+  "小林陽香": ["える"],
+  "中田菜々子": ["中田菜々子", "ななこ"],
+  "久保梨生": ["リオ", "りお"],
+  "宇梶知恵": ["ともえ"],
+  "増子真也子": ["まあや", "増子真也子"],
+  "田中里奈": ["りな"],
+  "山下優花": ["山下優花", "優花"],
+  "佐藤大河": ["佐藤大河"],
+  "西田真優": ["mayu"],
   "小林未侑": ["未侑", "小林未侑"],
   "中村八重子": ["八重子", "NYaeko"],
   "松元陸": ["Riku", "りく"]
 };
+
+// 兼業メンバー（全タスク洗い出し＋イベント運営_CTO用の両タブから検索）
+const CSP_DUAL_MEMBERS = ["小林未侑", "中村八重子", "松元陸"];
 
 /**
  * メイン関数
@@ -62,49 +78,33 @@ function fillCSProductivity() {
   const eventLastRow = eventSheet.getLastRow();
   const eventData = eventSheet.getRange(2, 1, eventLastRow - 1, 9).getValues();
 
-  // はるなの担当タスクを全タスク洗い出しタブから収集
-  const harunaTasks = [];
-  for (let i = 0; i < taskData.length; i++) {
-    const assignee = String(taskData[i][6]).trim(); // G列（担当者）
-    if (assignee.indexOf(CSP_TARGET_PERSON) !== -1) {
-      harunaTasks.push(cspBuildTaskObject(taskData[i], i, "task"));
-    }
-  }
+  // 全メンバーごとのタスクリストを構築
+  const memberTaskMap = {};
+  for (const memberName in CSP_MEMBER_ALIASES) {
+    const aliases = CSP_MEMBER_ALIASES[memberName];
+    const isDual = CSP_DUAL_MEMBERS.indexOf(memberName) !== -1;
+    memberTaskMap[memberName] = [];
 
-  // はるなの担当タスクをイベント運用_CTO用タブからも収集
-  for (let i = 0; i < eventData.length; i++) {
-    const assignee = String(eventData[i][6]).trim(); // G列（担当者）
-    if (assignee.indexOf(CSP_TARGET_PERSON) !== -1) {
-      harunaTasks.push(cspBuildTaskObject(eventData[i], i, "event"));
-    }
-  }
-
-  Logger.log("はるなの担当タスク数: " + harunaTasks.length + " (全タスク+イベント運用)");
-  if (harunaTasks.length === 0) { Logger.log("エラー: はるなが見つかりません。"); return; }
-
-  // 兼業メンバー用タスクリストを構築（両タブから検索）
-  const dualMemberTasks = {};
-  for (const memberName in CSP_DUAL_MEMBERS) {
-    const aliases = CSP_DUAL_MEMBERS[memberName];
-    dualMemberTasks[memberName] = [];
-
-    // 全タスク洗い出しタブから検索
+    // 全タスク洗い出しタブから検索（全メンバー共通）
     for (let i = 0; i < taskData.length; i++) {
       const assignee = String(taskData[i][6]).trim();
       if (cspMatchAnyAlias(assignee, aliases)) {
-        dualMemberTasks[memberName].push(cspBuildTaskObject(taskData[i], i, "task"));
+        memberTaskMap[memberName].push(cspBuildTaskObject(taskData[i], i, "task"));
       }
     }
 
-    // イベント運用_CTO用タブからも検索
-    for (let i = 0; i < eventData.length; i++) {
-      const assignee = String(eventData[i][6]).trim();
-      if (cspMatchAnyAlias(assignee, aliases)) {
-        dualMemberTasks[memberName].push(cspBuildTaskObject(eventData[i], i, "event"));
+    // イベント運営_CTO用タブからも検索（兼業メンバーのみ）
+    if (isDual) {
+      for (let i = 0; i < eventData.length; i++) {
+        const assignee = String(eventData[i][6]).trim();
+        if (cspMatchAnyAlias(assignee, aliases)) {
+          memberTaskMap[memberName].push(cspBuildTaskObject(eventData[i], i, "event"));
+        }
       }
     }
 
-    Logger.log(memberName + " の担当タスク数: " + dualMemberTasks[memberName].length + " (両タブ合計)");
+    const tabLabel = isDual ? "両タブ" : "全タスク洗い出し";
+    Logger.log(memberName + " の担当タスク数: " + memberTaskMap[memberName].length + " (" + tabLabel + ")");
   }
 
   // ★★★ クリア後にgetLastRow()で正確なA〜F列のデータ範囲を取得 ★★★
@@ -145,11 +145,10 @@ function fillCSProductivity() {
       continue;
     }
 
-    // 検索対象のタスクリストを決定
-    // 兼業メンバーの場合は両タブのタスクリスト、それ以外ははるなのタスクリスト
-    let searchTasks = harunaTasks;
-    if (CSP_DUAL_MEMBERS[currentMember] && dualMemberTasks[currentMember].length > 0) {
-      searchTasks = dualMemberTasks[currentMember];
+    // 検索対象のタスクリストを決定（メンバーごとに自分の担当タスクから検索）
+    let searchTasks = memberTaskMap[currentMember] || [];
+    if (searchTasks.length === 0) {
+      Logger.log("警告: 「" + currentMember + "」のタスクが見つかりません。エイリアス未登録の可能性があります。");
     }
 
     let bestMatch = null;
