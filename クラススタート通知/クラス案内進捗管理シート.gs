@@ -28,10 +28,10 @@ function postToDiscordOnEdit(e) {
   var countO = sheet.getRange(row, 15).getValue() || 0;
   var countP = sheet.getRange(row, 16).getValue() || 0;
   var totalCount = Number(countO) + Number(countP);
-  // T列 (20列目)：共同運用者有無（チェックボックス）
-  var hasCoOperator = sheet.getRange(row, 20).getValue();
-  // U列 (21列目)：共同運用者情報
-  var coOperatorInfo = sheet.getRange(row, 21).getValue() || "";
+  // S列 (19列目)：共同運用者有無（チェックボックス）
+  var hasCoOperator = sheet.getRange(row, 19).getValue();
+  // T列 (20列目)：共同運用者情報
+  var coOperatorInfo = sheet.getRange(row, 20).getValue() || "";
   // 4. 共同運用者の解析
   var coOperatorText = "";
   var coOperatorGroupCount = 0;
