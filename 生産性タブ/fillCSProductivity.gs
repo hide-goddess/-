@@ -19,7 +19,7 @@
  */
 
 // ===== 設定 =====
-const CSP_CS_SHEET_NAME = "生産性";
+const CSP_CS_SHEET_NAME = "CS生産性";
 const CSP_TASK_SHEET_NAME = "全タスクの洗い出し";
 const CSP_EVENT_SHEET_NAME = "イベント運用_CTO用";
 const CSP_HEADER_ROW = 12;
