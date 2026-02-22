@@ -1,5 +1,5 @@
 /**
- * CS生産性タブ G,H,I,J,K,L列 自動記入スクリプト（v13）
+ * CS生産性タブ G,H,I,J,K,L列 自動記入スクリプト（v14）
  *
  * 【処理内容】
  *  G列 = B列（メンバー）と同じ
@@ -8,23 +8,25 @@
  *  J列 = B列のメンバー名でタスクタブG列の担当者と照合し、
  *         合致する行のF列からE列の内容に類似するタスク名を抽出
  *  K列 = F列（カテゴリー）と同じ
- *  L列 = (タスクタブI列の推定時間 ÷ G列の担当者人数) × H列の月あたり頻度回数
+ *  L列 = 頻度に応じたキャップ付き時間計算（下記参照）
  *  C列「総時間」行 → G列のみ、H〜L空欄
  *  データ末尾にメンバーごとのK列・L列合計一覧 + 全体合計を追加
  *
- * 【v13 変更点】
- *  1. L列の推定時間にタスクタブH列（頻度）を考慮するよう変更
- *     計算式: (I列の時間 ÷ G列の担当者人数) × 月あたり頻度回数
- *     例: I列=1.5h, G列=4名, H列=月1 → 1.5h÷4人×1回 = 22.5m
- *     例: I列=30m, G列=2名, H列=毎日 → 30m÷2人×20日 = 5h
+ * 【v14 変更点】
+ *  L列の計算ロジックを頻度キャップ方式に変更:
+ *    - 毎日 / 随時 / 空欄 / 不定期 → キャップなし。各行 = I列時間
+ *    - 週N / 月N / 年N / 隔週 → 同一タスクの出現回数が頻度数N以下なら
+ *      各行 = I列時間。N超過ならN回分の時間に統一（均等配分）
+ *    例: 月1タスクが3行ある → 各行 = I列時間 × (1/3)
+ *    例: 週2タスクが2行ある → 各行 = I列時間（2以下なのでそのまま）
+ *    例: 週2タスクが5行ある → 各行 = I列時間 × (2/5)
  *
- * 【v12 以前の変更点】
+ * 【v13 以前の変更点】
  *  1. 全メンバーを名前エイリアス付きで定義し、各メンバーごとに
  *     自分が担当するタスクから類似検索するように変更
  *  2. 通常メンバー → 全タスク洗い出しタブのみから検索
  *  3. 兼業メンバー（小林未侑、中村八重子、松元陸）→ 両タブから検索（従来通り）
  *  4. L列が空欄の行はK列の実働時間を合計に含めない
- *  5. L列の平均タスク時間 = タスクタブI列の時間 ÷ タスクタブG列の担当者人数
  */
 
 // ===== 設定 =====
@@ -123,10 +125,9 @@ function fillCSProductivity() {
   Logger.log("データ行数: " + numRows + " (行" + CSP_DATA_START_ROW + "〜" + csLastRow + ")");
 
   // ==============================================================
-  // 各行を処理（元データと同じ行数を維持）
+  // Pass 1: 各行のベストマッチを特定
   // ==============================================================
-  const output = [];
-
+  const rowResults = [];
   const memberTotals = {};
   const memberOrder = [];
   let currentMember = "";
@@ -142,12 +143,12 @@ function fillCSProductivity() {
     }
 
     if (colB === "" && colE === "") {
-      output.push(["", "", "", "", "", ""]);
+      rowResults.push({ member: currentMember, colC: colC, colE: colE, colF: colF, bestMatch: null, isEmptyRow: true, isTotalRow: false });
       continue;
     }
 
     if (colC.indexOf("総時間") !== -1) {
-      output.push([currentMember, "", "", "", "", ""]);
+      rowResults.push({ member: currentMember, colC: colC, colE: colE, colF: colF, bestMatch: null, isEmptyRow: false, isTotalRow: true });
       continue;
     }
 
@@ -180,35 +181,80 @@ function fillCSProductivity() {
       }
     }
 
-    const colG = currentMember;
-    const colH = bestMatch ? bestMatch.midCategory : "";
-    const colI = "";
-    const colJ = bestMatch ? bestMatch.taskName : "";
-    const colK = colF;
+    rowResults.push({ member: currentMember, colC: colC, colE: colE, colF: colF, bestMatch: bestMatch, isEmptyRow: false, isTotalRow: false });
+  }
 
-    // 【変更3】L列 = (タスクタブI列の時間 ÷ G列の担当者人数) × H列の月あたり頻度回数
+  // ==============================================================
+  // Pass 2: メンバー×タスク名ごとの出現回数をカウント
+  // ==============================================================
+  const taskOccurrences = {};
+  for (let r = 0; r < rowResults.length; r++) {
+    const res = rowResults[r];
+    if (res.isEmptyRow || res.isTotalRow || !res.bestMatch) continue;
+    const key = res.member + "|" + res.bestMatch.taskName;
+    taskOccurrences[key] = (taskOccurrences[key] || 0) + 1;
+  }
+
+  // ==============================================================
+  // Pass 3: 出力を生成（L列は頻度キャップを適用）
+  // ==============================================================
+  const output = [];
+
+  for (let r = 0; r < rowResults.length; r++) {
+    const res = rowResults[r];
+
+    if (res.isEmptyRow) {
+      output.push(["", "", "", "", "", ""]);
+      continue;
+    }
+
+    if (res.isTotalRow) {
+      output.push([res.member, "", "", "", "", ""]);
+      continue;
+    }
+
+    const colG = res.member;
+    const colH = res.bestMatch ? res.bestMatch.midCategory : "";
+    const colI = "";
+    const colJ = res.bestMatch ? res.bestMatch.taskName : "";
+    const colK = res.colF;
+
+    // 【v14】L列 = 頻度キャップ方式
+    // 毎日・随時・空欄・不定期 → 各行にI列時間をそのまま
+    // 週N・月N・年N・隔週 → 出現回数がN以下ならそのまま、N超過ならN回分に統一
     let colL = "";
-    if (bestMatch && bestMatch.estimatedTime !== "") {
-      const rawMinutes = cspParseTimeToMinutes(bestMatch.estimatedTime);
-      const assigneeCount = bestMatch.assigneeCount || 1;
-      const monthlyFreq = cspParseFrequencyToMonthly(bestMatch.frequency);
-      const adjustedMinutes = (rawMinutes / assigneeCount) * monthlyFreq;
-      colL = cspFormatMinutesToTime(adjustedMinutes);
+    if (res.bestMatch && res.bestMatch.estimatedTime !== "") {
+      const rawMinutes = cspParseTimeToMinutes(res.bestMatch.estimatedTime);
+      const cap = cspGetFrequencyCap(res.bestMatch.frequency);
+      const key = res.member + "|" + res.bestMatch.taskName;
+      const occurrences = taskOccurrences[key] || 1;
+
+      if (cap === -1) {
+        // 毎日・随時・空欄・不定期 → キャップなし、各行にI列時間をそのまま
+        colL = cspFormatMinutesToTime(rawMinutes);
+      } else if (occurrences <= cap) {
+        // 出現回数が頻度以下 → 各行にI列時間をそのまま
+        colL = cspFormatMinutesToTime(rawMinutes);
+      } else {
+        // 出現回数が頻度を超過 → キャップ適用（cap回分の時間をoccurrences行に均等配分）
+        const adjustedMinutes = (rawMinutes * cap) / occurrences;
+        colL = cspFormatMinutesToTime(adjustedMinutes);
+      }
     }
 
     output.push([colG, colH, colI, colJ, colK, colL]);
 
-    if (currentMember !== "") {
-      if (!memberTotals[currentMember]) {
-        memberTotals[currentMember] = { kMin: 0, lMin: 0 };
-        memberOrder.push(currentMember);
+    if (res.member !== "") {
+      if (!memberTotals[res.member]) {
+        memberTotals[res.member] = { kMin: 0, lMin: 0 };
+        memberOrder.push(res.member);
       }
 
-      // 【変更1】L列に時間がある行のみK列を合計に含める
+      // L列に時間がある行のみK列を合計に含める
       if (colL !== "" && colL !== "0m") {
-        memberTotals[currentMember].kMin += cspParseTimeToMinutes(colK);
+        memberTotals[res.member].kMin += cspParseTimeToMinutes(res.colF);
       }
-      memberTotals[currentMember].lMin += cspParseTimeToMinutes(colL);
+      memberTotals[res.member].lMin += cspParseTimeToMinutes(colL);
     }
   }
 
@@ -341,7 +387,56 @@ function cspFormatMinutesToTime(minutes) {
 }
 
 // ================================================================
-// 頻度→月あたり回数 変換関数
+// 頻度キャップ関数（v14 新規）
+// ================================================================
+
+/**
+ * 頻度文字列からキャップ値（上限出現回数）を取得する
+ *
+ * 【ルール】
+ *   毎日           → -1（キャップなし）
+ *   随時 / 不定期 / 都度 → -1（キャップなし）
+ *   空欄           → -1（キャップなし）
+ *   隔週（週4）     → 4
+ *   週N            → N
+ *   月N            → N
+ *   年N            → N
+ *
+ * @param {string} freqStr - 頻度文字列
+ * @return {number} キャップ値（-1 = 無制限）
+ */
+function cspGetFrequencyCap(freqStr) {
+  if (!freqStr) return -1;
+  const s = String(freqStr).trim().toLowerCase().replace(/\s+/g, "");
+  if (s === "") return -1;
+
+  // 毎日 → キャップなし
+  if (s.indexOf("毎日") !== -1) return -1;
+
+  // 随時・不定期・都度 → キャップなし
+  if (s.indexOf("随時") !== -1 || s.indexOf("不定期") !== -1 || s.indexOf("都度") !== -1) return -1;
+
+  // 隔週 → 4（隔週（週4）として扱う）
+  if (s.indexOf("隔週") !== -1) return 4;
+
+  // 週N → N
+  const weekMatch = s.match(/週(\d+)/);
+  if (weekMatch) return parseInt(weekMatch[1], 10);
+
+  // 月N → N
+  const monthMatch = s.match(/月(\d+)/);
+  if (monthMatch) return parseInt(monthMatch[1], 10);
+
+  // 年N → N
+  const yearMatch = s.match(/年(\d+)/);
+  if (yearMatch) return parseInt(yearMatch[1], 10);
+
+  // デフォルト → キャップなし
+  return -1;
+}
+
+// ================================================================
+// 頻度→月あたり回数 変換関数（旧バージョン互換用に残置）
 // ================================================================
 
 /**
