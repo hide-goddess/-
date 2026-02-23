@@ -13,10 +13,12 @@
  *  データ末尾にメンバーごとのK列・L列合計一覧 + 全体合計を追加
  *
  * 【v16 変更点】
- *  サマリーにメンバーごとの月間実働時間・平均タスク時間を追加:
+ *  サマリーに月別・メンバーごとの実働時間・平均タスク時間を追加:
+ *    - A列の月情報（"12月","1月" 等）を自動判定し、月ごとにデータをグループ化
  *    - 月間実働時間 = 各ユニークタスクの（推定時間 × 月あたり頻度回数）の合計
  *    - 平均タスク時間 = 月間実働時間 ÷ ユニークタスク数
- *    - サマリーのH列に月間実働時間、I列に平均タスク時間を出力
+ *    - 月別サマリー（各月ごとのメンバー別集計 + 月合計）をデータ末尾に出力
+ *    - その後に全体サマリー（全月合算）を出力
  *
  * 【v15 変更点】
  *  L列の頻度キャップに新しい頻度タイプを追加:
@@ -145,24 +147,32 @@ function fillCSProductivity() {
   const memberTotals = {};
   const memberOrder = [];
   let currentMember = "";
+  let currentMonth = "";
 
   for (let r = 0; r < csData.length; r++) {
+    const colA = csData[r][0];
     const colB = String(csData[r][1]).trim();
     const colC = String(csData[r][2]).trim();
     const colE = String(csData[r][4]).trim();
     const colF = String(csData[r][5]).trim();
+
+    // 【v16】月の追跡（A列から取得、空欄なら前の月を引き継ぐ）
+    const extractedMonth = cspExtractMonth(colA);
+    if (extractedMonth !== "") {
+      currentMonth = extractedMonth;
+    }
 
     if (colB !== "") {
       currentMember = colB;
     }
 
     if (colB === "" && colE === "") {
-      rowResults.push({ member: currentMember, colC: colC, colE: colE, colF: colF, bestMatch: null, isEmptyRow: true, isTotalRow: false });
+      rowResults.push({ member: currentMember, month: currentMonth, colC: colC, colE: colE, colF: colF, bestMatch: null, isEmptyRow: true, isTotalRow: false });
       continue;
     }
 
     if (colC.indexOf("総時間") !== -1) {
-      rowResults.push({ member: currentMember, colC: colC, colE: colE, colF: colF, bestMatch: null, isEmptyRow: false, isTotalRow: true });
+      rowResults.push({ member: currentMember, month: currentMonth, colC: colC, colE: colE, colF: colF, bestMatch: null, isEmptyRow: false, isTotalRow: true });
       continue;
     }
 
@@ -195,7 +205,7 @@ function fillCSProductivity() {
       }
     }
 
-    rowResults.push({ member: currentMember, colC: colC, colE: colE, colF: colF, bestMatch: bestMatch, isEmptyRow: false, isTotalRow: false });
+    rowResults.push({ member: currentMember, month: currentMonth, colC: colC, colE: colE, colF: colF, bestMatch: bestMatch, isEmptyRow: false, isTotalRow: false });
   }
 
   // ==============================================================
@@ -215,6 +225,9 @@ function fillCSProductivity() {
   const output = [];
   const memberUniqueTasks = {};  // { memberName: { taskName: { rawMinutes, frequency } } }
   const memberTaskRowCount = {}; // { memberName: タスク行数（L列 > 0 の行） }
+  // 【v16】月別集計用
+  const monthStats = {};   // { month: { memberTotals, memberUniqueTasks, memberOrder } }
+  const monthOrder = [];   // 月の出現順序
 
   for (let r = 0; r < rowResults.length; r++) {
     const res = rowResults[r];
@@ -272,7 +285,7 @@ function fillCSProductivity() {
       }
       memberTotals[res.member].lMin += cspParseTimeToMinutes(colL);
 
-      // 【v16】ユニークタスク追跡（月間実働時間・平均タスク時間用）
+      // 【v16】ユニークタスク追跡（全体の月間実働時間・平均タスク時間用）
       if (res.bestMatch && colL !== "" && colL !== "0m") {
         if (!memberUniqueTasks[res.member]) {
           memberUniqueTasks[res.member] = {};
@@ -287,15 +300,101 @@ function fillCSProductivity() {
           };
         }
       }
+
+      // 【v16】月別の集計追跡
+      if (res.month !== "") {
+        if (!monthStats[res.month]) {
+          monthStats[res.month] = { memberTotals: {}, memberUniqueTasks: {}, memberOrder: [] };
+          monthOrder.push(res.month);
+        }
+        const ms = monthStats[res.month];
+        if (!ms.memberTotals[res.member]) {
+          ms.memberTotals[res.member] = { kMin: 0, lMin: 0 };
+          ms.memberOrder.push(res.member);
+        }
+        if (colL !== "" && colL !== "0m") {
+          ms.memberTotals[res.member].kMin += cspParseTimeToMinutes(res.colF);
+        }
+        ms.memberTotals[res.member].lMin += cspParseTimeToMinutes(colL);
+
+        if (res.bestMatch && colL !== "" && colL !== "0m") {
+          if (!ms.memberUniqueTasks[res.member]) {
+            ms.memberUniqueTasks[res.member] = {};
+          }
+          const mTaskKey = res.bestMatch.taskName;
+          if (!ms.memberUniqueTasks[res.member][mTaskKey]) {
+            ms.memberUniqueTasks[res.member][mTaskKey] = {
+              rawMinutes: cspParseTimeToMinutes(res.bestMatch.estimatedTime),
+              frequency: res.bestMatch.frequency
+            };
+          }
+        }
+      }
     }
   }
 
   // ==============================================================
-  // データ末尾にメンバー別合計 + 全体合計を追加
+  // 【v16】月別サマリー（各月ごとのメンバー別集計 + 月合計）
+  // ==============================================================
+
+  for (let mi = 0; mi < monthOrder.length; mi++) {
+    const month = monthOrder[mi];
+    const ms = monthStats[month];
+
+    output.push(["", "", "", "", "", ""]);
+    output.push(["【" + month + "】", "月間実働時間", "平均タスク時間", "合計区分", "K列合計", "L列合計"]);
+
+    let monthGrandKMin = 0;
+    let monthGrandLMin = 0;
+    let monthGrandMonthlyMin = 0;
+    let monthGrandUniqueTaskCount = 0;
+
+    for (let m = 0; m < ms.memberOrder.length; m++) {
+      const name = ms.memberOrder[m];
+      const totals = ms.memberTotals[name];
+      const kFormatted = cspFormatMinutesToTime(totals.kMin);
+      const lFormatted = cspFormatMinutesToTime(totals.lMin);
+
+      // 月間実働時間 = 各ユニークタスクの（推定時間 × 月あたり頻度回数）の合計
+      let monthlyMin = 0;
+      let uniqueTaskCount = 0;
+      const uTasks = ms.memberUniqueTasks[name] || {};
+      for (const tName in uTasks) {
+        const t = uTasks[tName];
+        monthlyMin += t.rawMinutes * cspParseFrequencyToMonthly(t.frequency);
+        uniqueTaskCount++;
+      }
+
+      // 平均タスク時間 = 月間実働時間 ÷ ユニークタスク数
+      const avgMin = uniqueTaskCount > 0 ? monthlyMin / uniqueTaskCount : 0;
+
+      const monthlyFormatted = cspFormatMinutesToTime(monthlyMin);
+      const avgFormatted = cspFormatMinutesToTime(avgMin);
+
+      output.push([name, monthlyFormatted, avgFormatted, name + " 合計", kFormatted, lFormatted]);
+
+      monthGrandKMin += totals.kMin;
+      monthGrandLMin += totals.lMin;
+      monthGrandMonthlyMin += monthlyMin;
+      monthGrandUniqueTaskCount += uniqueTaskCount;
+
+      Logger.log(month + " " + name + " 合計: K=" + kFormatted + " L=" + lFormatted + " 月間=" + monthlyFormatted + " 平均=" + avgFormatted);
+    }
+
+    const mgkFormatted = cspFormatMinutesToTime(monthGrandKMin);
+    const mglFormatted = cspFormatMinutesToTime(monthGrandLMin);
+    const mgMonthlyFormatted = cspFormatMinutesToTime(monthGrandMonthlyMin);
+    const mgAvgFormatted = cspFormatMinutesToTime(monthGrandUniqueTaskCount > 0 ? monthGrandMonthlyMin / monthGrandUniqueTaskCount : 0);
+    output.push(["", mgMonthlyFormatted, mgAvgFormatted, month + " 全体合計", mgkFormatted, mglFormatted]);
+    Logger.log(month + " 全体合計: K=" + mgkFormatted + " L=" + mglFormatted + " 月間=" + mgMonthlyFormatted + " 平均=" + mgAvgFormatted);
+  }
+
+  // ==============================================================
+  // 全体サマリー（全月合算のメンバー別合計 + 全体合計）
   // ==============================================================
 
   output.push(["", "", "", "", "", ""]);
-  output.push(["メンバー", "月間実働時間", "平均タスク時間", "合計区分", "K列合計", "L列合計"]);
+  output.push(["【全体】", "月間実働時間", "平均タスク時間", "合計区分", "K列合計", "L列合計"]);
 
   let grandKMin = 0;
   let grandLMin = 0;
@@ -308,7 +407,7 @@ function fillCSProductivity() {
     const kFormatted = cspFormatMinutesToTime(totals.kMin);
     const lFormatted = cspFormatMinutesToTime(totals.lMin);
 
-    // 【v16】月間実働時間 = 各ユニークタスクの（推定時間 × 月あたり頻度回数）の合計
+    // 月間実働時間 = 各ユニークタスクの（推定時間 × 月あたり頻度回数）の合計
     let monthlyMin = 0;
     let uniqueTaskCount = 0;
     const uTasks = memberUniqueTasks[name] || {};
@@ -318,7 +417,7 @@ function fillCSProductivity() {
       uniqueTaskCount++;
     }
 
-    // 【v16】平均タスク時間 = 月間実働時間 ÷ ユニークタスク数
+    // 平均タスク時間 = 月間実働時間 ÷ ユニークタスク数
     const avgMin = uniqueTaskCount > 0 ? monthlyMin / uniqueTaskCount : 0;
 
     const monthlyFormatted = cspFormatMinutesToTime(monthlyMin);
@@ -331,7 +430,7 @@ function fillCSProductivity() {
     grandMonthlyMin += monthlyMin;
     grandUniqueTaskCount += uniqueTaskCount;
 
-    Logger.log(name + " 合計: K=" + kFormatted + " L=" + lFormatted + " 月間=" + monthlyFormatted + " 平均=" + avgFormatted + " (タスク" + uniqueTaskCount + "種)");
+    Logger.log("全体 " + name + " 合計: K=" + kFormatted + " L=" + lFormatted + " 月間=" + monthlyFormatted + " 平均=" + avgFormatted + " (タスク" + uniqueTaskCount + "種)");
   }
 
   const grandKFormatted = cspFormatMinutesToTime(grandKMin);
@@ -409,6 +508,34 @@ function cspMatchAnyAlias(assigneeStr, aliases) {
     if (assigneeStr.indexOf(aliases[i]) !== -1) return true;
   }
   return false;
+}
+
+// ================================================================
+// 月抽出ヘルパー（v16 新規）
+// ================================================================
+
+/**
+ * A列の値から月ラベルを抽出する
+ * Date型、"12月"、"2024年12月"、数値(1〜12) に対応
+ * @param {*} value - A列のセル値
+ * @return {string} 月ラベル（例: "12月"）。判定不能なら空文字
+ */
+function cspExtractMonth(value) {
+  if (!value) return "";
+  // Date型（Google Sheetsの日付セル）
+  if (value instanceof Date && !isNaN(value.getTime())) {
+    return (value.getMonth() + 1) + "月";
+  }
+  var s = String(value).trim();
+  if (s === "") return "";
+  // "N月" パターン（年付きでもOK: "2024年12月" → "12月"）
+  var monthMatch = s.match(/(\d{1,2})月/);
+  if (monthMatch) return monthMatch[1] + "月";
+  // 純粋な数値（1〜12）
+  var num = parseInt(s, 10);
+  if (!isNaN(num) && num >= 1 && num <= 12) return num + "月";
+  // それ以外はそのまま返す（カスタムラベル対応）
+  return s;
 }
 
 // ================================================================
