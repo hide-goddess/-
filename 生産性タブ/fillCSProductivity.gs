@@ -13,11 +13,9 @@
  *  データ末尾にメンバーごとのK列・L列合計一覧 + 全体合計を追加
  *
  * 【v16 変更点】
- *  サマリーに月別・メンバーごとの実働時間・平均タスク時間を追加:
+ *  サマリーを月別に分割:
  *    - A列の月情報（"12月","1月" 等）を自動判定し、月ごとにデータをグループ化
- *    - 月間実働時間 = 各ユニークタスクの（推定時間 × 月あたり頻度回数）の合計
- *    - 平均タスク時間 = 月間実働時間 ÷ ユニークタスク数
- *    - 月別サマリー（各月ごとのメンバー別集計 + 月合計）をデータ末尾に出力
+ *    - 月別サマリー（各月ごとのメンバー別 K列合計・L列合計 + 月合計）をデータ末尾に出力
  *    - その後に全体サマリー（全月合算）を出力
  *
  * 【v15 変更点】
@@ -223,10 +221,8 @@ function fillCSProductivity() {
   // Pass 3: 出力を生成（L列は頻度キャップを適用）
   // ==============================================================
   const output = [];
-  const memberUniqueTasks = {};  // { memberName: { taskName: { rawMinutes, frequency } } }
-  const memberTaskRowCount = {}; // { memberName: タスク行数（L列 > 0 の行） }
   // 【v16】月別集計用
-  const monthStats = {};   // { month: { memberTotals, memberUniqueTasks, memberOrder } }
+  const monthStats = {};   // { month: { memberTotals, memberOrder } }
   const monthOrder = [];   // 月の出現順序
 
   for (let r = 0; r < rowResults.length; r++) {
@@ -285,26 +281,10 @@ function fillCSProductivity() {
       }
       memberTotals[res.member].lMin += cspParseTimeToMinutes(colL);
 
-      // 【v16】ユニークタスク追跡（全体の月間実働時間・平均タスク時間用）
-      if (res.bestMatch && colL !== "" && colL !== "0m") {
-        if (!memberUniqueTasks[res.member]) {
-          memberUniqueTasks[res.member] = {};
-          memberTaskRowCount[res.member] = 0;
-        }
-        memberTaskRowCount[res.member]++;
-        const uTaskKey = res.bestMatch.taskName;
-        if (!memberUniqueTasks[res.member][uTaskKey]) {
-          memberUniqueTasks[res.member][uTaskKey] = {
-            rawMinutes: cspParseTimeToMinutes(res.bestMatch.estimatedTime),
-            frequency: res.bestMatch.frequency
-          };
-        }
-      }
-
       // 【v16】月別の集計追跡
       if (res.month !== "") {
         if (!monthStats[res.month]) {
-          monthStats[res.month] = { memberTotals: {}, memberUniqueTasks: {}, memberOrder: [] };
+          monthStats[res.month] = { memberTotals: {}, memberOrder: [] };
           monthOrder.push(res.month);
         }
         const ms = monthStats[res.month];
@@ -316,19 +296,6 @@ function fillCSProductivity() {
           ms.memberTotals[res.member].kMin += cspParseTimeToMinutes(res.colF);
         }
         ms.memberTotals[res.member].lMin += cspParseTimeToMinutes(colL);
-
-        if (res.bestMatch && colL !== "" && colL !== "0m") {
-          if (!ms.memberUniqueTasks[res.member]) {
-            ms.memberUniqueTasks[res.member] = {};
-          }
-          const mTaskKey = res.bestMatch.taskName;
-          if (!ms.memberUniqueTasks[res.member][mTaskKey]) {
-            ms.memberUniqueTasks[res.member][mTaskKey] = {
-              rawMinutes: cspParseTimeToMinutes(res.bestMatch.estimatedTime),
-              frequency: res.bestMatch.frequency
-            };
-          }
-        }
       }
     }
   }
@@ -342,12 +309,10 @@ function fillCSProductivity() {
     const ms = monthStats[month];
 
     output.push(["", "", "", "", "", ""]);
-    output.push(["【" + month + "】", "月間実働時間", "平均タスク時間", "合計区分", "K列合計", "L列合計"]);
+    output.push(["【" + month + "】", "", "", "合計区分", "K列合計", "L列合計"]);
 
     let monthGrandKMin = 0;
     let monthGrandLMin = 0;
-    let monthGrandMonthlyMin = 0;
-    let monthGrandUniqueTaskCount = 0;
 
     for (let m = 0; m < ms.memberOrder.length; m++) {
       const name = ms.memberOrder[m];
@@ -355,38 +320,18 @@ function fillCSProductivity() {
       const kFormatted = cspFormatMinutesToTime(totals.kMin);
       const lFormatted = cspFormatMinutesToTime(totals.lMin);
 
-      // 月間実働時間 = 各ユニークタスクの（推定時間 × 月あたり頻度回数）の合計
-      let monthlyMin = 0;
-      let uniqueTaskCount = 0;
-      const uTasks = ms.memberUniqueTasks[name] || {};
-      for (const tName in uTasks) {
-        const t = uTasks[tName];
-        monthlyMin += t.rawMinutes * cspParseFrequencyToMonthly(t.frequency);
-        uniqueTaskCount++;
-      }
-
-      // 平均タスク時間 = 月間実働時間 ÷ ユニークタスク数
-      const avgMin = uniqueTaskCount > 0 ? monthlyMin / uniqueTaskCount : 0;
-
-      const monthlyFormatted = cspFormatMinutesToTime(monthlyMin);
-      const avgFormatted = cspFormatMinutesToTime(avgMin);
-
-      output.push([name, monthlyFormatted, avgFormatted, name + " 合計", kFormatted, lFormatted]);
+      output.push([name, "", "", name + " 合計", kFormatted, lFormatted]);
 
       monthGrandKMin += totals.kMin;
       monthGrandLMin += totals.lMin;
-      monthGrandMonthlyMin += monthlyMin;
-      monthGrandUniqueTaskCount += uniqueTaskCount;
 
-      Logger.log(month + " " + name + " 合計: K=" + kFormatted + " L=" + lFormatted + " 月間=" + monthlyFormatted + " 平均=" + avgFormatted);
+      Logger.log(month + " " + name + " 合計: K=" + kFormatted + " L=" + lFormatted);
     }
 
     const mgkFormatted = cspFormatMinutesToTime(monthGrandKMin);
     const mglFormatted = cspFormatMinutesToTime(monthGrandLMin);
-    const mgMonthlyFormatted = cspFormatMinutesToTime(monthGrandMonthlyMin);
-    const mgAvgFormatted = cspFormatMinutesToTime(monthGrandUniqueTaskCount > 0 ? monthGrandMonthlyMin / monthGrandUniqueTaskCount : 0);
-    output.push(["", mgMonthlyFormatted, mgAvgFormatted, month + " 全体合計", mgkFormatted, mglFormatted]);
-    Logger.log(month + " 全体合計: K=" + mgkFormatted + " L=" + mglFormatted + " 月間=" + mgMonthlyFormatted + " 平均=" + mgAvgFormatted);
+    output.push(["", "", "", month + " 全体合計", mgkFormatted, mglFormatted]);
+    Logger.log(month + " 全体合計: K=" + mgkFormatted + " L=" + mglFormatted);
   }
 
   // ==============================================================
@@ -394,12 +339,10 @@ function fillCSProductivity() {
   // ==============================================================
 
   output.push(["", "", "", "", "", ""]);
-  output.push(["【全体】", "月間実働時間", "平均タスク時間", "合計区分", "K列合計", "L列合計"]);
+  output.push(["【全体】", "", "", "合計区分", "K列合計", "L列合計"]);
 
   let grandKMin = 0;
   let grandLMin = 0;
-  let grandMonthlyMin = 0;
-  let grandUniqueTaskCount = 0;
 
   for (let m = 0; m < memberOrder.length; m++) {
     const name = memberOrder[m];
@@ -407,38 +350,18 @@ function fillCSProductivity() {
     const kFormatted = cspFormatMinutesToTime(totals.kMin);
     const lFormatted = cspFormatMinutesToTime(totals.lMin);
 
-    // 月間実働時間 = 各ユニークタスクの（推定時間 × 月あたり頻度回数）の合計
-    let monthlyMin = 0;
-    let uniqueTaskCount = 0;
-    const uTasks = memberUniqueTasks[name] || {};
-    for (const tName in uTasks) {
-      const t = uTasks[tName];
-      monthlyMin += t.rawMinutes * cspParseFrequencyToMonthly(t.frequency);
-      uniqueTaskCount++;
-    }
-
-    // 平均タスク時間 = 月間実働時間 ÷ ユニークタスク数
-    const avgMin = uniqueTaskCount > 0 ? monthlyMin / uniqueTaskCount : 0;
-
-    const monthlyFormatted = cspFormatMinutesToTime(monthlyMin);
-    const avgFormatted = cspFormatMinutesToTime(avgMin);
-
-    output.push([name, monthlyFormatted, avgFormatted, name + " 合計", kFormatted, lFormatted]);
+    output.push([name, "", "", name + " 合計", kFormatted, lFormatted]);
 
     grandKMin += totals.kMin;
     grandLMin += totals.lMin;
-    grandMonthlyMin += monthlyMin;
-    grandUniqueTaskCount += uniqueTaskCount;
 
-    Logger.log("全体 " + name + " 合計: K=" + kFormatted + " L=" + lFormatted + " 月間=" + monthlyFormatted + " 平均=" + avgFormatted + " (タスク" + uniqueTaskCount + "種)");
+    Logger.log("全体 " + name + " 合計: K=" + kFormatted + " L=" + lFormatted);
   }
 
   const grandKFormatted = cspFormatMinutesToTime(grandKMin);
   const grandLFormatted = cspFormatMinutesToTime(grandLMin);
-  const grandMonthlyFormatted = cspFormatMinutesToTime(grandMonthlyMin);
-  const grandAvgFormatted = cspFormatMinutesToTime(grandUniqueTaskCount > 0 ? grandMonthlyMin / grandUniqueTaskCount : 0);
-  output.push(["", grandMonthlyFormatted, grandAvgFormatted, "全体合計", grandKFormatted, grandLFormatted]);
-  Logger.log("全体合計: K=" + grandKFormatted + " L=" + grandLFormatted + " 月間=" + grandMonthlyFormatted + " 平均=" + grandAvgFormatted);
+  output.push(["", "", "", "全体合計", grandKFormatted, grandLFormatted]);
+  Logger.log("全体合計: K=" + grandKFormatted + " L=" + grandLFormatted);
 
   // ==============================================================
   // G〜L列に一括書き込み
