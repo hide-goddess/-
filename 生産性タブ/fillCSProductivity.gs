@@ -1,5 +1,5 @@
 /**
- * CS生産性タブ G,H,I,J,K,L列 自動記入スクリプト（v15）
+ * CS生産性タブ G,H,I,J,K,L列 自動記入スクリプト（v16）
  *
  * 【処理内容】
  *  G列 = B列（メンバー）と同じ
@@ -11,6 +11,12 @@
  *  L列 = 頻度に応じたキャップ付き時間計算（下記参照）
  *  C列「総時間」行 → G列のみ、H〜L空欄
  *  データ末尾にメンバーごとのK列・L列合計一覧 + 全体合計を追加
+ *
+ * 【v16 変更点】
+ *  サマリーにメンバーごとの月間実働時間・平均タスク時間を追加:
+ *    - 月間実働時間 = 各ユニークタスクの（推定時間 × 月あたり頻度回数）の合計
+ *    - 平均タスク時間 = 月間実働時間 ÷ ユニークタスク数
+ *    - サマリーのH列に月間実働時間、I列に平均タスク時間を出力
  *
  * 【v15 変更点】
  *  L列の頻度キャップに新しい頻度タイプを追加:
@@ -207,6 +213,8 @@ function fillCSProductivity() {
   // Pass 3: 出力を生成（L列は頻度キャップを適用）
   // ==============================================================
   const output = [];
+  const memberUniqueTasks = {};  // { memberName: { taskName: { rawMinutes, frequency } } }
+  const memberTaskRowCount = {}; // { memberName: タスク行数（L列 > 0 の行） }
 
   for (let r = 0; r < rowResults.length; r++) {
     const res = rowResults[r];
@@ -263,6 +271,22 @@ function fillCSProductivity() {
         memberTotals[res.member].kMin += cspParseTimeToMinutes(res.colF);
       }
       memberTotals[res.member].lMin += cspParseTimeToMinutes(colL);
+
+      // 【v16】ユニークタスク追跡（月間実働時間・平均タスク時間用）
+      if (res.bestMatch && colL !== "" && colL !== "0m") {
+        if (!memberUniqueTasks[res.member]) {
+          memberUniqueTasks[res.member] = {};
+          memberTaskRowCount[res.member] = 0;
+        }
+        memberTaskRowCount[res.member]++;
+        const uTaskKey = res.bestMatch.taskName;
+        if (!memberUniqueTasks[res.member][uTaskKey]) {
+          memberUniqueTasks[res.member][uTaskKey] = {
+            rawMinutes: cspParseTimeToMinutes(res.bestMatch.estimatedTime),
+            frequency: res.bestMatch.frequency
+          };
+        }
+      }
     }
   }
 
@@ -271,10 +295,12 @@ function fillCSProductivity() {
   // ==============================================================
 
   output.push(["", "", "", "", "", ""]);
-  output.push(["メンバー", "", "", "合計区分", "K列合計", "L列合計"]);
+  output.push(["メンバー", "月間実働時間", "平均タスク時間", "合計区分", "K列合計", "L列合計"]);
 
   let grandKMin = 0;
   let grandLMin = 0;
+  let grandMonthlyMin = 0;
+  let grandUniqueTaskCount = 0;
 
   for (let m = 0; m < memberOrder.length; m++) {
     const name = memberOrder[m];
@@ -282,18 +308,38 @@ function fillCSProductivity() {
     const kFormatted = cspFormatMinutesToTime(totals.kMin);
     const lFormatted = cspFormatMinutesToTime(totals.lMin);
 
-    output.push([name, "", "", name + " 合計", kFormatted, lFormatted]);
+    // 【v16】月間実働時間 = 各ユニークタスクの（推定時間 × 月あたり頻度回数）の合計
+    let monthlyMin = 0;
+    let uniqueTaskCount = 0;
+    const uTasks = memberUniqueTasks[name] || {};
+    for (const tName in uTasks) {
+      const t = uTasks[tName];
+      monthlyMin += t.rawMinutes * cspParseFrequencyToMonthly(t.frequency);
+      uniqueTaskCount++;
+    }
+
+    // 【v16】平均タスク時間 = 月間実働時間 ÷ ユニークタスク数
+    const avgMin = uniqueTaskCount > 0 ? monthlyMin / uniqueTaskCount : 0;
+
+    const monthlyFormatted = cspFormatMinutesToTime(monthlyMin);
+    const avgFormatted = cspFormatMinutesToTime(avgMin);
+
+    output.push([name, monthlyFormatted, avgFormatted, name + " 合計", kFormatted, lFormatted]);
 
     grandKMin += totals.kMin;
     grandLMin += totals.lMin;
+    grandMonthlyMin += monthlyMin;
+    grandUniqueTaskCount += uniqueTaskCount;
 
-    Logger.log(name + " 合計: K=" + kFormatted + " L=" + lFormatted);
+    Logger.log(name + " 合計: K=" + kFormatted + " L=" + lFormatted + " 月間=" + monthlyFormatted + " 平均=" + avgFormatted + " (タスク" + uniqueTaskCount + "種)");
   }
 
   const grandKFormatted = cspFormatMinutesToTime(grandKMin);
   const grandLFormatted = cspFormatMinutesToTime(grandLMin);
-  output.push(["", "", "", "全体合計", grandKFormatted, grandLFormatted]);
-  Logger.log("全体合計: K=" + grandKFormatted + " L=" + grandLFormatted);
+  const grandMonthlyFormatted = cspFormatMinutesToTime(grandMonthlyMin);
+  const grandAvgFormatted = cspFormatMinutesToTime(grandUniqueTaskCount > 0 ? grandMonthlyMin / grandUniqueTaskCount : 0);
+  output.push(["", grandMonthlyFormatted, grandAvgFormatted, "全体合計", grandKFormatted, grandLFormatted]);
+  Logger.log("全体合計: K=" + grandKFormatted + " L=" + grandLFormatted + " 月間=" + grandMonthlyFormatted + " 平均=" + grandAvgFormatted);
 
   // ==============================================================
   // G〜L列に一括書き込み
