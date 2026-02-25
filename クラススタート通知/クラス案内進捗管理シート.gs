@@ -16,15 +16,13 @@ function postToDiscordOnEdit(e) {
   }
   // 3. 必要なデータを取得
   var row = range.getRow();
-  // E列 (5列目)：クラス名（結合セル対応：値が空の場合、上方向に値を探す）
-  var className = sheet.getRange(row, 5).getValue();
-  if (!className || className === "") {
-    for (var r = row - 1; r >= 1; r--) {
-      var val = sheet.getRange(r, 5).getValue();
-      if (val && val !== "") {
-        className = val;
-        break;
-      }
+  // E列 (5列目)：クラス名（結合セル対応：結合セルの場合のみ結合元から値を取得）
+  var classNameCell = sheet.getRange(row, 5);
+  var className = classNameCell.getValue();
+  if ((!className || className === "") && classNameCell.isPartOfMerge()) {
+    var mergedRanges = classNameCell.getMergedRanges();
+    if (mergedRanges.length > 0) {
+      className = mergedRanges[0].getValue();
     }
   }
   // J列 (10列目)：クラスアルファベット
