@@ -16,8 +16,17 @@ function postToDiscordOnEdit(e) {
   }
   // 3. 必要なデータを取得
   var row = range.getRow();
-  // E列 (5列目)：クラス名
+  // E列 (5列目)：クラス名（結合セル対応：値が空の場合、上方向に値を探す）
   var className = sheet.getRange(row, 5).getValue();
+  if (!className || className === "") {
+    for (var r = row - 1; r >= 1; r--) {
+      var val = sheet.getRange(r, 5).getValue();
+      if (val && val !== "") {
+        className = val;
+        break;
+      }
+    }
+  }
   // J列 (10列目)：クラスアルファベット
   var classAlpha = sheet.getRange(row, 10).getValue();
   // O列 (15列目) と P列 (16列目) の合計
