@@ -96,8 +96,30 @@ function runCurrentMonth() {
 }
 
 // ============================================================
-// 手動実行用②: 月番号を指定して書き込む
-// コード内の引数を変えてから実行: runSpecificMonth() の中の数字を変更
+// 手動実行用②: 複数月をまとめて書き込む
+// fromMonth〜toMonth の範囲を一括更新
+// ============================================================
+function runMonthRange() {
+  var fromMonth = 1; // ← 開始月（1〜12）
+  var toMonth   = 3; // ← 終了月（1〜12）
+
+  const mainSS    = SpreadsheetApp.openById(MAIN_SPREADSHEET_ID);
+  const destSheet = mainSS.getSheetByName(ACHIEVEMENT_TAB_NAME);
+  if (!destSheet) { Logger.log('シートが見つかりません'); return; }
+
+  _initializeSheet(destSheet);
+
+  for (var m = fromMonth; m <= toMonth; m++) {
+    Logger.log(`--- ${m}月分を更新中 ---`);
+    _updateMonthData(destSheet, m);
+  }
+
+  Logger.log(`${fromMonth}月〜${toMonth}月分の更新が完了しました。`);
+}
+
+// ============================================================
+// 手動実行用③: 月番号を1つ指定して書き込む
+// コード内の数字を変えてから実行（1〜12）
 // ============================================================
 function runSpecificMonth() {
   var targetMonth = 3; // ← ここの数字を変えて実行（1〜12）
