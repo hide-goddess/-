@@ -108,6 +108,14 @@ function runDailyUpdate() {
   Logger.log('=== 日次更新開始: ' + Utilities.formatDate(today, 'Asia/Tokyo', 'yyyy/MM/dd') + ' ===');
 
   try {
+    // 前日分も処理（当日に前日の日報を出した場合に対応）
+    var yesterday = new Date(today);
+    yesterday.setDate(yesterday.getDate() - 1);
+    Logger.log('前日分を処理: ' + Utilities.formatDate(yesterday, 'Asia/Tokyo', 'yyyy/MM/dd'));
+    processDate(yesterday);
+
+    // 当日分を処理
+    Logger.log('当日分を処理: ' + Utilities.formatDate(today, 'Asia/Tokyo', 'yyyy/MM/dd'));
     processDate(today);
 
     // 月末チェック: 今日が月末なら翌月タブを作成
@@ -333,6 +341,10 @@ function writeSummary(date, nameStr, count) {
     // B列のドロップダウン入力規則が複数名を拒否するためクリアしてから書き込む
     sheet.getRange(writeRow, 2).clearDataValidations();
     sheet.getRange(writeRow, 1, 1, 4).setValues([[dateStr, nameStr, count, '']]);
+    // 列の配置: A=左寄せ, B=中央, C=左寄せ
+    sheet.getRange(writeRow, 1).setHorizontalAlignment('left');
+    sheet.getRange(writeRow, 2).setHorizontalAlignment('center');
+    sheet.getRange(writeRow, 3).setHorizontalAlignment('left');
     SpreadsheetApp.flush();
 
     Logger.log('書き込み完了: 行' + writeRow + ' / ' + dateStr + ' / ' + nameStr + ' / ' + count + '件');
@@ -430,7 +442,7 @@ function processToday() {
 function processMarchFromStart() {
   Logger.log('=== 3月15日から本日までの一括処理開始 ===');
 
-  var start   = new Date(2026, 2, 15); // 2026/3/15
+  var start   = new Date(2026, 2, 13); // 2026/3/13
   var today   = new Date();
   today.setHours(0, 0, 0, 0);
 
@@ -491,8 +503,9 @@ function setupDailyTrigger() {
   ScriptApp.newTrigger('runDailyUpdate')
     .timeBased()
     .everyDays(1)
-    .atHour(7)
+    .atHour(23)
+    .nearMinute(55)
     .create();
 
-  Logger.log('毎日午前7時のトリガーを設定しました');
+  Logger.log('毎日23:55のトリガーを設定しました');
 }
