@@ -205,12 +205,12 @@ function setupTrigger() {
     .filter(t => t.getHandlerFunction() === 'autoUpdateMonthlyGoals')
     .forEach(t => ScriptApp.deleteTrigger(t));
 
-  // 毎日 午前9時に実行
+  // 毎日 午前5時に実行
   ScriptApp.newTrigger('autoUpdateMonthlyGoals')
     .timeBased()
     .everyDays(1)
-    .atHour(9)
+    .atHour(5)
     .create();
 
-  Logger.log('トリガー設定完了: 毎日 午前9時に実行（毎月1〜10日のみデータ更新）');
+  Logger.log('トリガー設定完了: 毎日 午前5時に実行（毎月1〜10日のみデータ更新）');
 }
