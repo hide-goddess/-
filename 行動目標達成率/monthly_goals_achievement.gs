@@ -222,12 +222,13 @@ function _updateMonthData(sheet, month) {
         continue;
       }
 
-      // B21:B23（Key Result）と E21:E23（達成率）を取得
-      const krValues      = srcSheet.getRange('B21:B23').getValues();
+      // A21:A23（Key Result）と E21:E23（達成率）を取得
+      // ※ Key Result セルはA列とB列が結合されており、左端のA列に値が格納されている
+      const krValues      = srcSheet.getRange('A21:A23').getValues();
       const achieveValues = srcSheet.getRange('E21:E23').getValues();
 
       // 読み取り値をログ出力（デバッグ用）
-      Logger.log(`${member.name} ${month}月 読取値 B21=${krValues[0][0]} B22=${krValues[1][0]} B23=${krValues[2][0]} / E21=${achieveValues[0][0]} E22=${achieveValues[1][0]} E23=${achieveValues[2][0]}`);
+      Logger.log(`${member.name} ${month}月 読取値 A21=${krValues[0][0]} A22=${krValues[1][0]} A23=${krValues[2][0]} / E21=${achieveValues[0][0]} E22=${achieveValues[1][0]} E23=${achieveValues[2][0]}`);
 
       // 6セル分のデータを組み立て
       const rowData = [];
@@ -277,9 +278,9 @@ function debugCheckSource() {
       if (!srcSheet) {
         row.status = '定量評価シート_1月 タブなし';
       } else {
-        var kr  = srcSheet.getRange('B21:B23').getValues();
+        var kr  = srcSheet.getRange('A21:A23').getValues();
         var ach = srcSheet.getRange('E21:E23').getValues();
-        row.B21 = kr[0][0];  row.B22 = kr[1][0];  row.B23 = kr[2][0];
+        row.A21 = kr[0][0];  row.A22 = kr[1][0];  row.A23 = kr[2][0];
         row.E21 = ach[0][0]; row.E22 = ach[1][0]; row.E23 = ach[2][0];
         row.status = 'OK';
       }
