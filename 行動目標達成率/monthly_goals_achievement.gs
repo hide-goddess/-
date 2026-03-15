@@ -226,6 +226,9 @@ function _updateMonthData(sheet, month) {
       const krValues      = srcSheet.getRange('B21:B23').getValues();
       const achieveValues = srcSheet.getRange('E21:E23').getValues();
 
+      // 読み取り値をログ出力（デバッグ用）
+      Logger.log(`${member.name} ${month}月 読取値 B21=${krValues[0][0]} B22=${krValues[1][0]} B23=${krValues[2][0]} / E21=${achieveValues[0][0]} E22=${achieveValues[1][0]} E23=${achieveValues[2][0]}`);
+
       // 6セル分のデータを組み立て
       const rowData = [];
       for (let j = 0; j < 3; j++) {
@@ -251,6 +254,43 @@ function _updateMonthData(sheet, month) {
 // ============================================================
 function _getMonthStartCol(month) {
   return MONTH_START_COL + (month - 1) * COLS_PER_MONTH;
+}
+
+// ============================================================
+// デバッグ用: 特定メンバーの評価シートから実際に読み取れる値をログ出力
+// まずこの関数を実行して、ソース側のデータ取得状況を確認してください
+// ============================================================
+function debugCheckSource() {
+  var results = [];
+
+  for (var i = 0; i < MEMBERS.length; i++) {
+    var member = MEMBERS[i];
+    var row = { name: member.name };
+
+    try {
+      var memberSS  = SpreadsheetApp.openById(member.ssId);
+      var sheetList = memberSS.getSheets().map(function(s){ return s.getName(); });
+      row.tabs = sheetList.join(' / ');
+
+      // 1月タブを確認
+      var srcSheet = memberSS.getSheetByName('定量評価シート_1月');
+      if (!srcSheet) {
+        row.status = '定量評価シート_1月 タブなし';
+      } else {
+        var kr  = srcSheet.getRange('B21:B23').getValues();
+        var ach = srcSheet.getRange('E21:E23').getValues();
+        row.B21 = kr[0][0];  row.B22 = kr[1][0];  row.B23 = kr[2][0];
+        row.E21 = ach[0][0]; row.E22 = ach[1][0]; row.E23 = ach[2][0];
+        row.status = 'OK';
+      }
+    } catch(e) {
+      row.status = 'ERROR: ' + e.message;
+    }
+
+    Logger.log(JSON.stringify(row));
+  }
+
+  Logger.log('デバッグ完了。上記ログでB21〜E23の値を確認してください。');
 }
 
 // ============================================================
