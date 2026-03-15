@@ -22,7 +22,7 @@
 
 var SS_ID = {
   schedule: '1w5nrMbL6-RbrjXlxMv_0DzlhEfX3rnUJQFyotAPj4VE', // CS部勤務表
-  summary:  '1gIygjcHKgGvg3j0RU0LxzrPeGxNF9cJeOrxznHqwOAo', // 【CS】お問い合わせ件数集計シート
+  summary:  '1p2LzF43RpI72oP4gJph6Cazv8hPmYCN_n79aY2Bc1GE', // 【CS】お問い合わせ件数集計シート
 };
 
 // ================================================================
