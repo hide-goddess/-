@@ -255,7 +255,11 @@ function generateTabNameCandidates(year, month, day) {
 //
 // スキップ対象:
 //   - B列が「クラス分け」の行（日報のクラス分けドロップダウン行はノイズ）
-//   - A列が時刻形式（7:00 等）の行（スケジュール行 = 枠なしノイズ）
+//   - 罫線なしのセル（枠なし = ノイズ。Sheets API で判定）
+//
+// ※ Sheets API（詳細サービス）が有効な場合のみ罫線フィルタが機能します。
+//   無効時は罫線チェックをスキップし、従来動作にフォールバックします。
+//   有効化手順: GASエディタ → 左メニュー「サービス」→「Google Sheets API」を追加
 // ================================================================
 
 function extractCountFromSheet(sheet) {
@@ -268,18 +272,13 @@ function extractCountFromSheet(sheet) {
     return b.indexOf('クラス分け') !== -1;
   }
 
-  // A列が時刻形式（スケジュール行）かどうか判定
-  //   例: "7:00", "07:30", Date型（スプシが時刻として保持）
-  function isScheduleRow(row) {
-    var a = row[0];
-    if (a instanceof Date) return true;
-    var aStr = String(a || '');
-    return /^\d{1,2}:\d{2}/.test(aStr) || /^\d{1,2}時/.test(aStr);
-  }
+  // 罫線マップを取得（Sheets API使用。未有効時はnull→フォールバック）
+  var borderedMap = getBorderedCellsMap(sheet);
 
-  // カウント対象外の行かどうか（クラス分け行 or スケジュール行）
-  function shouldSkip(row) {
-    return isClassBunkRow(row) || isScheduleRow(row);
+  // 指定セルに罫線があるか（borderedMapがnullなら常にtrue）
+  function hasBorderAt(dataRowIdx, colIdx) {
+    if (!borderedMap) return true; // API未有効: フィルタ無効
+    return !!borderedMap[(REPORT_SKIP_ROW + dataRowIdx) + ',' + colIdx];
   }
 
   // 戦略1: 「合計」を含む行のC〜I列数値合計
@@ -296,14 +295,12 @@ function extractCountFromSheet(sheet) {
   }
 
   // 戦略2: 「〇件」パターン（全角数字含む）
-  //   ※ クラス分け行・スケジュール行はスキップ
+  //   ※ クラス分け行はスキップ、罫線なしセルはスキップ
   var kenTotal = 0;
   for (var i = 0; i < data.length; i++) {
-    if (shouldSkip(data[i])) {
-      Logger.log('    スキップ (行' + (REPORT_SKIP_ROW + i + 1) + '): B="' + String(data[i][1] || '') + '"');
-      continue;
-    }
+    if (isClassBunkRow(data[i])) continue;
     for (var c = 0; c < data[i].length; c++) {
+      if (!hasBorderAt(i, c)) continue; // 罫線なしセルはスキップ
       kenTotal += extractKenCount(String(data[i][c] || ''));
     }
   }
@@ -313,16 +310,94 @@ function extractCountFromSheet(sheet) {
   }
 
   // 戦略3: C〜I列の数値合計（フォールバック）
-  //   ※ クラス分け行・スケジュール行はスキップ
+  //   ※ クラス分け行はスキップ、罫線なしセルはスキップ
   var grandTotal = 0;
   for (var i = 0; i < data.length; i++) {
-    if (shouldSkip(data[i])) continue;
-    grandTotal += sumColumnsCI(data[i]);
+    if (isClassBunkRow(data[i])) continue;
+    var end = Math.min(data[i].length - 1, 8);
+    for (var c = 2; c <= end; c++) {
+      if (!hasBorderAt(i, c)) continue; // 罫線なしセルはスキップ
+      var v = data[i][c];
+      if (typeof v === 'number' && !isNaN(v) && v > 0) grandTotal += v;
+    }
   }
   if (grandTotal > 0) {
-    Logger.log('    → C〜I列合計から取得: ' + grandTotal);
+    Logger.log('    → C〜I列合計（罫線フィルタ）から取得: ' + grandTotal);
   }
   return grandTotal;
+}
+
+// ================================================================
+// セルの罫線マップを返す（Google Sheets API 詳細サービス使用）
+//   戻り値: { "rowIndex,colIndex": true, ... }（0-indexed、シート全体基準）
+//           API未有効時は null（呼び出し元がフォールバック処理）
+//
+// 有効化手順:
+//   GASエディタ左メニュー「サービス（＋）」→「Google Sheets API」→「追加」
+// ================================================================
+
+function getBorderedCellsMap(sheet) {
+  try {
+    var ssId      = sheet.getParent().getId();
+    var sheetName = sheet.getName();
+    var lastRow   = Math.min(sheet.getLastRow(), 120);
+    var lastCol   = Math.min(sheet.getLastColumn(), 14); // N列まで
+    var range     = "'" + sheetName + "'!A1:" + colIndexToLetter(lastCol - 1) + lastRow;
+
+    var response = Sheets.Spreadsheets.get(ssId, {
+      ranges: [range],
+      fields: 'sheets/data/rowData/values/effectiveFormat/borders'
+    });
+
+    var map  = {};
+    var rows = response.sheets[0].data[0].rowData;
+    if (!rows) return map;
+
+    for (var r = 0; r < rows.length; r++) {
+      if (!rows[r] || !rows[r].values) continue;
+      for (var c = 0; c < rows[r].values.length; c++) {
+        var cell = rows[r].values[c];
+        if (!cell || !cell.effectiveFormat || !cell.effectiveFormat.borders) continue;
+        if (hasAnyBorderStyle(cell.effectiveFormat.borders)) {
+          map[r + ',' + c] = true;
+        }
+      }
+    }
+
+    if (Object.keys(map).length === 0) {
+      Logger.log('  罫線情報なし（全セル枠なし）: フィルタ無効でフォールバック');
+      return null;
+    }
+
+    Logger.log('  罫線マップ取得: ' + Object.keys(map).length + 'セル');
+    return map;
+
+  } catch (e) {
+    Logger.log('  罫線情報取得スキップ（Sheets API未有効の可能性）: ' + e.message);
+    return null; // フォールバック: 罫線チェックなし
+  }
+}
+
+// 罫線オブジェクトにいずれかのスタイルがあるか判定
+function hasAnyBorderStyle(borders) {
+  var sides = ['top', 'bottom', 'left', 'right'];
+  for (var i = 0; i < sides.length; i++) {
+    var b = borders[sides[i]];
+    if (b && b.style && b.style !== 'NONE') return true;
+  }
+  return false;
+}
+
+// 列インデックス（0始まり）をアルファベットに変換（0→A, 25→Z, 26→AA）
+function colIndexToLetter(idx) {
+  var letter = '';
+  var n = idx + 1;
+  while (n > 0) {
+    var rem = (n - 1) % 26;
+    letter  = String.fromCharCode(65 + rem) + letter;
+    n       = Math.floor((n - 1) / 26);
+  }
+  return letter;
 }
 
 // C列（インデックス2）〜I列（インデックス8）の正数を合計
