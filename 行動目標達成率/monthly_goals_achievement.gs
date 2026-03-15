@@ -1,14 +1,28 @@
 // ============================================================
-// 行動目標達成率 月次自動更新スクリプト
-// 毎月1日に前月分の各メンバーのKey Result・達成率を
-// 「メンバーの日報・評価制度管理」スプシの行動目標達成率タブへ書き込む
+// 行動目標達成率 月次自動更新スクリプト（横展開レイアウト版）
+// レイアウト: 行 = メンバー（縦）、列 = 月（横）
+//
+// 【シート構造】
+// 行1: A=名前, B=日報, C=評価シート | D〜: 1月[6列], 2月[6列], ... 12月[6列]
+// 行2: （空）  （空）  （空）       | Key Result, 達成率 × 3セット × 各月
+// 行3〜17: メンバー15名
 // ============================================================
 
 // ---- 設定 ----
 const MAIN_SPREADSHEET_ID = '1gIygjcHKgGvg3j0RU0LxzrPeGxNF9cJeOrxznHqwOAo';
 const ACHIEVEMENT_TAB_NAME = '行動目標達成率';
 
-// メンバーリスト（名前 と 評価シートのスプレッドシートID）
+// レイアウト定数
+const HEADER_ROW      = 1;  // 月ヘッダー行
+const SUBHEADER_ROW   = 2;  // Key Result / 達成率 サブヘッダー行
+const MEMBER_START_ROW = 3; // メンバーデータ開始行
+const NAME_COL        = 1;  // A列: 名前
+const NIPPO_COL       = 2;  // B列: 日報リンク
+const EVAL_COL        = 3;  // C列: 評価シートリンク
+const MONTH_START_COL = 4;  // D列: 月データ開始列
+const COLS_PER_MONTH  = 6;  // 1ヶ月あたりの列数（KR①達成率①, KR②達成率②, KR③達成率③）
+
+// メンバーリスト
 const MEMBERS = [
   { name: '松元陸',    ssId: '1no-0rtLzKWybhJYne41zINUDqWh8xagF6kh5UvifPOs' },
   { name: '平松弥央菜', ssId: '1jeLIm3kRHl5-4b3EwvgrNnwfoAFG036ymmL2BggaRks' },
@@ -28,32 +42,24 @@ const MEMBERS = [
 ];
 
 // ============================================================
-// メイン関数（毎月1日に自動実行 → 前月分を集計）
+// メイン関数（毎日 午前9時に実行）
+// 1〜10日: 当月データを更新
+// 11日以降: スキップ（次の1日まで待機）
 // ============================================================
 function autoUpdateMonthlyGoals() {
-  const now = new Date();
-  // 毎月1日実行 → 前月を対象にする
-  const targetDate = new Date(now.getFullYear(), now.getMonth() - 1, 1);
-  const targetYear  = targetDate.getFullYear();
-  const targetMonth = targetDate.getMonth() + 1; // 1〜12
+  const now   = new Date();
+  const day   = now.getDate();
+  const year  = now.getFullYear();
+  const month = now.getMonth() + 1; // 1〜12
 
-  Logger.log(`対象月: ${targetYear}年${targetMonth}月`);
-  _updateForMonth(targetYear, targetMonth);
-}
+  if (day > 10) {
+    Logger.log(`本日は${month}月${day}日のためスキップ（更新対象: 毎月1〜10日）`);
+    return;
+  }
 
-// ============================================================
-// 任意の月を手動で再実行したいときに使う関数
-// 例: updateSpecificMonth(2025, 12)
-// ============================================================
-function updateSpecificMonth(year, month) {
-  _updateForMonth(year, month);
-}
+  Logger.log(`実行: ${year}年${month}月${day}日 → ${month}月分を更新`);
 
-// ============================================================
-// 内部処理
-// ============================================================
-function _updateForMonth(year, month) {
-  const mainSS = SpreadsheetApp.openById(MAIN_SPREADSHEET_ID);
+  const mainSS    = SpreadsheetApp.openById(MAIN_SPREADSHEET_ID);
   const destSheet = mainSS.getSheetByName(ACHIEVEMENT_TAB_NAME);
 
   if (!destSheet) {
@@ -61,119 +67,150 @@ function _updateForMonth(year, month) {
     return;
   }
 
-  const srcTabName  = `定量評価シート_${month}月`;
-  const monthLabel  = `${year}年${month}月`;
+  _initializeSheet(destSheet);
+  _updateMonthData(destSheet, month);
 
-  // --- 同月分が既に書き込まれているか確認（重複防止） ---
-  const existingData = destSheet.getDataRange().getValues();
-  for (let r = 0; r < existingData.length; r++) {
-    if (existingData[r][0] === monthLabel) {
-      Logger.log(`${monthLabel} のデータは既に存在します。上書きをスキップします。`);
-      return;
+  Logger.log(`${year}年${month}月分の更新が完了しました。`);
+}
+
+// ============================================================
+// 手動実行用: updateSpecificMonth(1) など月番号で指定
+// ============================================================
+function updateSpecificMonth(month) {
+  if (month < 1 || month > 12) {
+    Logger.log('月は 1〜12 で指定してください');
+    return;
+  }
+  const mainSS    = SpreadsheetApp.openById(MAIN_SPREADSHEET_ID);
+  const destSheet = mainSS.getSheetByName(ACHIEVEMENT_TAB_NAME);
+  if (!destSheet) { Logger.log('シートが見つかりません'); return; }
+
+  _initializeSheet(destSheet);
+  _updateMonthData(destSheet, month);
+  Logger.log(`${month}月分の手動更新が完了しました。`);
+}
+
+// ============================================================
+// シート初期化（ヘッダー・メンバー名が未設定の場合のみ書き込む）
+// ============================================================
+function _initializeSheet(sheet) {
+  // 既に初期化済みかチェック（メンバー名1人目が入っていれば初期化済みとみなす）
+  if (sheet.getRange(MEMBER_START_ROW, NAME_COL).getValue() === MEMBERS[0].name) return;
+
+  // ---- 固定列ヘッダー（行1） ----
+  sheet.getRange(HEADER_ROW, NAME_COL).setValue('名前');
+  sheet.getRange(HEADER_ROW, NIPPO_COL).setValue('日報');
+  sheet.getRange(HEADER_ROW, EVAL_COL).setValue('評価シート');
+  sheet.getRange(HEADER_ROW, NAME_COL, 1, 3).setFontWeight('bold').setBackground('#E8E8E8');
+
+  // ---- 月ヘッダー（1月〜12月）& サブヘッダー（Key Result / 達成率） ----
+  for (let m = 1; m <= 12; m++) {
+    const startCol = _getMonthStartCol(m);
+
+    // 行1: 月ヘッダー（6列結合）
+    const hRange = sheet.getRange(HEADER_ROW, startCol, 1, COLS_PER_MONTH);
+    hRange.merge();
+    hRange.setValue(`${m}月`);
+    hRange.setFontWeight('bold');
+    hRange.setBackground('#4A90D9');
+    hRange.setFontColor('#FFFFFF');
+    hRange.setHorizontalAlignment('center');
+
+    // 行2: サブヘッダー（Key Result, 達成率 × 3）
+    for (let i = 0; i < 3; i++) {
+      sheet.getRange(SUBHEADER_ROW, startCol + i * 2).setValue('Key Result');
+      sheet.getRange(SUBHEADER_ROW, startCol + i * 2 + 1).setValue('達成率');
     }
+    sheet.getRange(SUBHEADER_ROW, startCol, 1, COLS_PER_MONTH)
+      .setFontWeight('bold')
+      .setBackground('#D9EAF7');
   }
 
-  // --- 書き込み開始行の決定（最終行の2行下） ---
-  const lastRow = destSheet.getLastRow();
-  let writeRow  = (lastRow === 0) ? 1 : lastRow + 2;
+  // ---- メンバー名・評価シートリンクを設定（行3〜） ----
+  for (let i = 0; i < MEMBERS.length; i++) {
+    const row    = MEMBER_START_ROW + i;
+    const member = MEMBERS[i];
+    const ssUrl  = `https://docs.google.com/spreadsheets/d/${member.ssId}/edit`;
 
-  // --- 月ヘッダー ---
-  _writeMonthHeader(destSheet, writeRow, monthLabel);
-  writeRow++;
-
-  // --- 列ヘッダー ---
-  _writeColumnHeader(destSheet, writeRow);
-  writeRow++;
-
-  // --- 各メンバーのデータ ---
-  for (const member of MEMBERS) {
-    _writeMemberRow(destSheet, writeRow, member, srcTabName);
-    writeRow++;
+    sheet.getRange(row, NAME_COL).setValue(member.name);
+    sheet.getRange(row, EVAL_COL).setFormula(`=HYPERLINK("${ssUrl}","評価シート")`);
   }
 
-  Logger.log(`${monthLabel} の書き込みが完了しました。`);
+  Logger.log('シートの初期化が完了しました。');
 }
 
-// --- 月ヘッダー行を書き込む ---
-function _writeMonthHeader(sheet, row, monthLabel) {
-  const cell = sheet.getRange(row, 1);
-  cell.setValue(monthLabel);
-  cell.setFontWeight('bold');
-  cell.setFontSize(12);
-  cell.setBackground('#4A90D9');
-  cell.setFontColor('#FFFFFF');
-  // A〜G列を結合して見栄えを整える
-  sheet.getRange(row, 1, 1, 7).merge();
-}
+// ============================================================
+// 指定月のデータを全メンバー分書き込む
+// ============================================================
+function _updateMonthData(sheet, month) {
+  const startCol  = _getMonthStartCol(month);
+  const srcTabName = `定量評価シート_${month}月`;
 
-// --- 列ヘッダー行を書き込む ---
-function _writeColumnHeader(sheet, row) {
-  const headers = [
-    '名前',
-    'Key Result ①', '達成率 ①',
-    'Key Result ②', '達成率 ②',
-    'Key Result ③', '達成率 ③',
-  ];
-  const range = sheet.getRange(row, 1, 1, headers.length);
-  range.setValues([headers]);
-  range.setFontWeight('bold');
-  range.setBackground('#D9EAF7');
-}
+  for (let i = 0; i < MEMBERS.length; i++) {
+    const member = MEMBERS[i];
+    const row    = MEMBER_START_ROW + i;
 
-// --- メンバー1人分のデータ行を書き込む ---
-function _writeMemberRow(sheet, row, member, srcTabName) {
-  // デフォルト値（エラー時）
-  let rowData = [member.name, '', '', '', '', '', ''];
+    try {
+      const memberSS = SpreadsheetApp.openById(member.ssId);
+      const srcSheet = memberSS.getSheetByName(srcTabName);
 
-  try {
-    const memberSS  = SpreadsheetApp.openById(member.ssId);
-    const srcSheet  = memberSS.getSheetByName(srcTabName);
+      if (!srcSheet) {
+        Logger.log(`${member.name}: タブ "${srcTabName}" が見つかりません → 空欄のまま`);
+        sheet.getRange(row, startCol, 1, COLS_PER_MONTH).clearContent();
+        continue;
+      }
 
-    if (!srcSheet) {
-      Logger.log(`${member.name}: タブ "${srcTabName}" が見つかりません`);
-      rowData[1] = `タブ "${srcTabName}" なし`;
-    } else {
       // B21:B23（Key Result）と E21:E23（達成率）を取得
       const krValues      = srcSheet.getRange('B21:B23').getValues(); // [[kr1],[kr2],[kr3]]
       const achieveValues = srcSheet.getRange('E21:E23').getValues(); // [[a1],[a2],[a3]]
 
-      for (let i = 0; i < 3; i++) {
-        const kr      = krValues[i][0];
-        const achieve = achieveValues[i][0];
-        // 空欄の場合はそのまま空欄にする
-        if (kr !== '' && kr !== null && kr !== undefined) {
-          rowData[1 + i * 2] = kr;
-          rowData[2 + i * 2] = achieve;
-        }
+      // 6セル分のデータを組み立て
+      const rowData = [];
+      for (let j = 0; j < 3; j++) {
+        const kr      = krValues[j][0];
+        const achieve = achieveValues[j][0];
+        const hasData = (kr !== null && kr !== '' && kr !== undefined);
+        rowData.push(hasData ? kr : '');
+        rowData.push(hasData ? achieve : '');
       }
-      Logger.log(`${member.name}: OK`);
-    }
-  } catch (e) {
-    Logger.log(`${member.name}: ERROR - ${e.message}`);
-    rowData[1] = `エラー: ${e.message}`;
-  }
 
-  sheet.getRange(row, 1, 1, rowData.length).setValues([rowData]);
+      sheet.getRange(row, startCol, 1, COLS_PER_MONTH).setValues([rowData]);
+      Logger.log(`${member.name}: ${month}月 書き込み完了`);
+
+    } catch (e) {
+      Logger.log(`${member.name}: ERROR - ${e.message}`);
+    }
+  }
 }
 
 // ============================================================
-// トリガー設定関数（初回のみ手動で1度だけ実行）
+// 列番号計算: 月 → 開始列
+//   1月 → D列（4）, 2月 → J列（10）, 3月 → P列（16）...
 // ============================================================
-function setupMonthlyTrigger() {
-  // 既存の同名トリガーを削除してから再登録（重複防止）
-  const triggers = ScriptApp.getProjectTriggers();
-  for (const trigger of triggers) {
-    if (trigger.getHandlerFunction() === 'autoUpdateMonthlyGoals') {
-      ScriptApp.deleteTrigger(trigger);
-    }
-  }
+function _getMonthStartCol(month) {
+  return MONTH_START_COL + (month - 1) * COLS_PER_MONTH;
+}
 
-  // 毎月1日 午前9時に実行
+// ============================================================
+// トリガー設定（初回1回だけ手動で実行してください）
+//
+// 設定内容: 毎日 午前9時に autoUpdateMonthlyGoals を実行
+//   → スクリプト内で「1〜10日のみ処理」「11日以降はスキップ」と制御
+//   → 毎月1〜10日は毎日データを上書き更新（評価シートへの後入力にも対応）
+//   → 11日以降は自動スキップし、翌月1日から再び更新開始
+// ============================================================
+function setupTrigger() {
+  // 既存の同名トリガーを全削除（重複防止）
+  ScriptApp.getProjectTriggers()
+    .filter(t => t.getHandlerFunction() === 'autoUpdateMonthlyGoals')
+    .forEach(t => ScriptApp.deleteTrigger(t));
+
+  // 毎日 午前9時に実行
   ScriptApp.newTrigger('autoUpdateMonthlyGoals')
     .timeBased()
-    .onMonthDay(1)
+    .everyDays(1)
     .atHour(9)
     .create();
 
-  Logger.log('毎月1日 午前9時のトリガーを設定しました。');
+  Logger.log('トリガー設定完了: 毎日 午前9時に実行（毎月1〜10日のみデータ更新）');
 }
