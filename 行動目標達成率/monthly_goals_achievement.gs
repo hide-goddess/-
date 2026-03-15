@@ -75,10 +75,34 @@ function autoUpdateMonthlyGoals() {
 }
 
 // ============================================================
-// 手動実行用: updateSpecificMonth(1) など月番号で指定
+// 手動実行用①: 当月データを日付チェックなしで即時書き込む
+// ドロップダウンから選んでそのまま実行できます
 // ============================================================
-function updateSpecificMonth(month) {
-  if (month < 1 || month > 12) {
+function runCurrentMonth() {
+  const now   = new Date();
+  const year  = now.getFullYear();
+  const month = now.getMonth() + 1;
+
+  Logger.log(`手動実行: ${year}年${month}月分を強制更新します`);
+
+  const mainSS    = SpreadsheetApp.openById(MAIN_SPREADSHEET_ID);
+  const destSheet = mainSS.getSheetByName(ACHIEVEMENT_TAB_NAME);
+  if (!destSheet) { Logger.log(`ERROR: シート "${ACHIEVEMENT_TAB_NAME}" が見つかりません`); return; }
+
+  _initializeSheet(destSheet);
+  _updateMonthData(destSheet, month);
+
+  Logger.log(`${year}年${month}月分の更新が完了しました。`);
+}
+
+// ============================================================
+// 手動実行用②: 月番号を指定して書き込む
+// コード内の引数を変えてから実行: runSpecificMonth() の中の数字を変更
+// ============================================================
+function runSpecificMonth() {
+  var targetMonth = 3; // ← ここの数字を変えて実行（1〜12）
+
+  if (targetMonth < 1 || targetMonth > 12) {
     Logger.log('月は 1〜12 で指定してください');
     return;
   }
@@ -87,8 +111,8 @@ function updateSpecificMonth(month) {
   if (!destSheet) { Logger.log('シートが見つかりません'); return; }
 
   _initializeSheet(destSheet);
-  _updateMonthData(destSheet, month);
-  Logger.log(`${month}月分の手動更新が完了しました。`);
+  _updateMonthData(destSheet, targetMonth);
+  Logger.log(`${targetMonth}月分の手動更新が完了しました。`);
 }
 
 // ============================================================
