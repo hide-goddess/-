@@ -252,11 +252,35 @@ function generateTabNameCandidates(year, month, day) {
 //   1. 「合計」を含む行のC〜I列の数値合計
 //   2. 全セルの「〇件」テキストパターン合計（全角数字対応）
 //   3. C〜I列の数値合計（フォールバック）
+//
+// スキップ対象:
+//   - B列が「クラス分け」の行（日報のクラス分けドロップダウン行はノイズ）
+//   - A列が時刻形式（7:00 等）の行（スケジュール行 = 枠なしノイズ）
 // ================================================================
 
 function extractCountFromSheet(sheet) {
   var all  = sheet.getDataRange().getValues();
   var data = all.slice(REPORT_SKIP_ROW); // 行1〜6をスキップ
+
+  // B列が「クラス分け」の行かどうか判定
+  function isClassBunkRow(row) {
+    var b = String(row[1] || '');
+    return b.indexOf('クラス分け') !== -1;
+  }
+
+  // A列が時刻形式（スケジュール行）かどうか判定
+  //   例: "7:00", "07:30", Date型（スプシが時刻として保持）
+  function isScheduleRow(row) {
+    var a = row[0];
+    if (a instanceof Date) return true;
+    var aStr = String(a || '');
+    return /^\d{1,2}:\d{2}/.test(aStr) || /^\d{1,2}時/.test(aStr);
+  }
+
+  // カウント対象外の行かどうか（クラス分け行 or スケジュール行）
+  function shouldSkip(row) {
+    return isClassBunkRow(row) || isScheduleRow(row);
+  }
 
   // 戦略1: 「合計」を含む行のC〜I列数値合計
   for (var i = 0; i < data.length; i++) {
@@ -272,8 +296,13 @@ function extractCountFromSheet(sheet) {
   }
 
   // 戦略2: 「〇件」パターン（全角数字含む）
+  //   ※ クラス分け行・スケジュール行はスキップ
   var kenTotal = 0;
   for (var i = 0; i < data.length; i++) {
+    if (shouldSkip(data[i])) {
+      Logger.log('    スキップ (行' + (REPORT_SKIP_ROW + i + 1) + '): B="' + String(data[i][1] || '') + '"');
+      continue;
+    }
     for (var c = 0; c < data[i].length; c++) {
       kenTotal += extractKenCount(String(data[i][c] || ''));
     }
@@ -284,8 +313,10 @@ function extractCountFromSheet(sheet) {
   }
 
   // 戦略3: C〜I列の数値合計（フォールバック）
+  //   ※ クラス分け行・スケジュール行はスキップ
   var grandTotal = 0;
   for (var i = 0; i < data.length; i++) {
+    if (shouldSkip(data[i])) continue;
     grandTotal += sumColumnsCI(data[i]);
   }
   if (grandTotal > 0) {
