@@ -188,14 +188,29 @@ function _initializeSheet(sheet) {
 
 // ============================================================
 // 指定月のデータを全メンバー分書き込む
+// A列の名前を検索して行を特定するため、シートに余分な行があっても正確に書き込める
 // ============================================================
 function _updateMonthData(sheet, month) {
-  const startCol  = _getMonthStartCol(month);
+  const startCol   = _getMonthStartCol(month);
   const srcTabName = `定量評価シート_${month}月`;
+
+  // A列全体を読み取って「名前 → 行番号」のマップを作成
+  const lastRow    = sheet.getLastRow();
+  const nameValues = sheet.getRange(1, NAME_COL, lastRow, 1).getValues();
+  const nameToRow  = {};
+  for (let r = 0; r < nameValues.length; r++) {
+    const name = String(nameValues[r][0]).trim();
+    if (name) nameToRow[name] = r + 1; // 1始まりの行番号
+  }
 
   for (let i = 0; i < MEMBERS.length; i++) {
     const member = MEMBERS[i];
-    const row    = MEMBER_START_ROW + i;
+    const row    = nameToRow[member.name];
+
+    if (!row) {
+      Logger.log(`${member.name}: シートのA列に名前が見つかりません → スキップ`);
+      continue;
+    }
 
     try {
       const memberSS = SpreadsheetApp.openById(member.ssId);
@@ -208,8 +223,8 @@ function _updateMonthData(sheet, month) {
       }
 
       // B21:B23（Key Result）と E21:E23（達成率）を取得
-      const krValues      = srcSheet.getRange('B21:B23').getValues(); // [[kr1],[kr2],[kr3]]
-      const achieveValues = srcSheet.getRange('E21:E23').getValues(); // [[a1],[a2],[a3]]
+      const krValues      = srcSheet.getRange('B21:B23').getValues();
+      const achieveValues = srcSheet.getRange('E21:E23').getValues();
 
       // 6セル分のデータを組み立て
       const rowData = [];
@@ -222,7 +237,7 @@ function _updateMonthData(sheet, month) {
       }
 
       sheet.getRange(row, startCol, 1, COLS_PER_MONTH).setValues([rowData]);
-      Logger.log(`${member.name}: ${month}月 書き込み完了`);
+      Logger.log(`${member.name}: ${month}月 行${row}に書き込み完了`);
 
     } catch (e) {
       Logger.log(`${member.name}: ERROR - ${e.message}`);
