@@ -9,21 +9,22 @@
 // ============================================================
 
 // ---- 設定 ----
-const MAIN_SPREADSHEET_ID = '1gIygjcHKgGvg3j0RU0LxzrPeGxNF9cJeOrxznHqwOAo';
-const ACHIEVEMENT_TAB_NAME = '行動目標達成率';
+// ※ GASはすべての.gsファイルがグローバルスコープを共有するため var を使用
+var MAIN_SPREADSHEET_ID = '1gIygjcHKgGvg3j0RU0LxzrPeGxNF9cJeOrxznHqwOAo';
+var ACHIEVEMENT_TAB_NAME = '行動目標達成率';
 
 // レイアウト定数
-const HEADER_ROW      = 1;  // 月ヘッダー行
-const SUBHEADER_ROW   = 2;  // Key Result / 達成率 サブヘッダー行
-const MEMBER_START_ROW = 3; // メンバーデータ開始行
-const NAME_COL        = 1;  // A列: 名前
-const NIPPO_COL       = 2;  // B列: 日報リンク
-const EVAL_COL        = 3;  // C列: 評価シートリンク
-const MONTH_START_COL = 4;  // D列: 月データ開始列
-const COLS_PER_MONTH  = 6;  // 1ヶ月あたりの列数（KR①達成率①, KR②達成率②, KR③達成率③）
+var HEADER_ROW      = 1;  // 月ヘッダー行
+var SUBHEADER_ROW   = 2;  // Key Result / 達成率 サブヘッダー行
+var MEMBER_START_ROW = 3; // メンバーデータ開始行
+var NAME_COL        = 1;  // A列: 名前
+var NIPPO_COL       = 2;  // B列: 日報リンク
+var EVAL_COL        = 3;  // C列: 評価シートリンク
+var MONTH_START_COL = 4;  // D列: 月データ開始列
+var COLS_PER_MONTH  = 6;  // 1ヶ月あたりの列数（KR①達成率①, KR②達成率②, KR③達成率③）
 
 // メンバーリスト
-const MEMBERS = [
+var MEMBERS = [
   { name: '松元陸',    ssId: '1no-0rtLzKWybhJYne41zINUDqWh8xagF6kh5UvifPOs' },
   { name: '平松弥央菜', ssId: '1jeLIm3kRHl5-4b3EwvgrNnwfoAFG036ymmL2BggaRks' },
   { name: '小林陽香',  ssId: '1zL9jpB8WPmCgJaLudY8usZrHPHK7TBmVKLt17RAx0Yk' },
