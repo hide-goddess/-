@@ -51,14 +51,28 @@ var REPORT_SKIP_ROW = 6;
 var DOW_JP = ['日', '月', '火', '水', '木', '金', '土'];
 
 // ================================================================
+// ヘルパー: Date から JST の { year, month, day } を取得
+//   プロジェクトのタイムゾーン設定に依存せず常に日本時間で返す
+// ================================================================
+
+function getJSTDate(date) {
+  return {
+    year:  Number(Utilities.formatDate(date, 'Asia/Tokyo', 'yyyy')),
+    month: Number(Utilities.formatDate(date, 'Asia/Tokyo', 'MM')),
+    day:   Number(Utilities.formatDate(date, 'Asia/Tokyo', 'dd')),
+  };
+}
+
+// ================================================================
 // ヘルパー: 日付を "yyyy/MM/dd(曜)" 形式の文字列にする
 // ================================================================
 
 function formatDateJP(date) {
-  var y   = date.getFullYear();
-  var m   = ('0' + (date.getMonth() + 1)).slice(-2);
-  var d   = ('0' + date.getDate()).slice(-2);
-  var dow = DOW_JP[date.getDay()];
+  // Utilities.formatDate で明示的に JST で取得（プロジェクトのタイムゾーン設定に依存しない）
+  var y   = Utilities.formatDate(date, 'Asia/Tokyo', 'yyyy');
+  var m   = Utilities.formatDate(date, 'Asia/Tokyo', 'MM');
+  var d   = Utilities.formatDate(date, 'Asia/Tokyo', 'dd');
+  var dow = DOW_JP[Number(Utilities.formatDate(date, 'Asia/Tokyo', 'u')) % 7]; // u=1(月)〜7(日) → %7で0(日)〜6(土)
   return y + '/' + m + '/' + d + '(' + dow + ')';
 }
 
@@ -138,9 +152,10 @@ function runDailyUpdate() {
 // ================================================================
 
 function processDate(date) {
-  var year  = date.getFullYear();
-  var month = date.getMonth() + 1;
-  var day   = date.getDate();
+  var jst   = getJSTDate(date);
+  var year  = jst.year;
+  var month = jst.month;
+  var day   = jst.day;
 
   Logger.log('--- 処理日: ' + year + '/' + month + '/' + day + ' ---');
 
@@ -298,8 +313,9 @@ function sumColumnsCI(row) {
 function writeSummary(date, nameStr, count) {
   try {
     var ss    = SpreadsheetApp.openById(SS_ID.summary);
-    var year  = date.getFullYear();
-    var month = date.getMonth() + 1;
+    var jst   = getJSTDate(date);
+    var year  = jst.year;
+    var month = jst.month;
     var sheetName = year + '年' + month + '月';
     var sheet = ss.getSheetByName(sheetName);
 
