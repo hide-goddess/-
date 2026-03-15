@@ -372,9 +372,9 @@ function writeSummary(date, nameStr, count) {
     sheet.getRange(writeRow, 2).clearDataValidations();
     sheet.getRange(writeRow, 1, 1, 4).setValues([[dateStr, nameStr, count, '']]);
     // 列の配置: A=左寄せ, B=中央, C=左寄せ
-    sheet.getRange(writeRow, 1).setHorizontalAlignment('left');
+    sheet.getRange(writeRow, 1).setHorizontalAlignment('right');
     sheet.getRange(writeRow, 2).setHorizontalAlignment('center');
-    sheet.getRange(writeRow, 3).setHorizontalAlignment('left');
+    sheet.getRange(writeRow, 3).setHorizontalAlignment('right');
     SpreadsheetApp.flush();
 
     Logger.log('書き込み完了: 行' + writeRow + ' / ' + dateStr + ' / ' + nameStr + ' / ' + count + '件');
