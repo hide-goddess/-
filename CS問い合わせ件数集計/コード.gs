@@ -330,6 +330,8 @@ function writeSummary(date, nameStr, count) {
     }
 
     // ---- A〜D列に一括書き込み（日付はテキスト文字列） ----
+    // B列のドロップダウン入力規則が複数名を拒否するためクリアしてから書き込む
+    sheet.getRange(writeRow, 2).clearDataValidations();
     sheet.getRange(writeRow, 1, 1, 4).setValues([[dateStr, nameStr, count, '']]);
     SpreadsheetApp.flush();
 
