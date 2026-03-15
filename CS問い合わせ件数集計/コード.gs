@@ -1,16 +1,15 @@
 /**
  * ================================================================
- * CS お問い合わせ件数集計 自動反映スクリプト
+ * CS お問い合わせ件数集計 自動反映スクリプト v5
  * ================================================================
  *
  * 機能:
- *   1. CS部勤務表から各日の問合せ担当者を特定
- *   2. 担当者の日報スプシから対応件数を抽出
- *   3. 【CS】お問い合わせ件数集計シートに日付・担当者・件数を記録
- *   4. 月末に翌月タブを自動作成
+ *   1. 全スタッフの日報スプシを確認して対応件数を抽出
+ *   2. 対応件数が1件以上のスタッフを1行にまとめて集計シートに記録
+ *   3. 月末に翌月タブを自動作成
  *
  * 初回セットアップ手順:
- *   1. このスクリプトをお問い合わせ件数集計シートのGASに貼り付け
+ *   1. このスクリプトをお問い合わせ件数集計シートのGASに貼り付け保存
  *   2. 「setupDailyTrigger」を実行してトリガーを設定
  *   3. 「processMarchFromStart」を実行して3/15以降のデータを一括取得
  *
@@ -21,40 +20,89 @@
 // スプレッドシートID設定
 // ================================================================
 
-const SS_ID = {
+var SS_ID = {
   schedule: '1w5nrMbL6-RbrjXlxMv_0DzlhEfX3rnUJQFyotAPj4VE', // CS部勤務表
-  summary:  '1p2LzF43RpI72oP4gJph6Cazv8hPmYCN_n79aY2Bc1GE', // 【CS】お問い合わせ件数集計シート
+  summary:  '1gIygjcHKgGvg3j0RU0LxzrPeGxNF9cJeOrxznHqwOAo', // 【CS】お問い合わせ件数集計シート
 };
 
 // ================================================================
-// スタッフ設定
-// キー: CS部勤務表のD列（問合せ当番）に記載の名前
-// displayName: 集計シートに書く表示名
+// スタッフ設定（全員チェック対象）
+// displayName: 集計シートB列に書く名前
 // reportId: 日報スプレッドシートのID
 // ================================================================
 
-const STAFF = {
-  'あゆみ':  { displayName: 'あゆみ',     reportId: '17YS1m15AZDCBsFKwRq0LEBGsf7jY4exCTJXyhZfDW9E' }, // yukinoさん_日報
-  'ななこ':  { displayName: 'ななこ',     reportId: '1joyW47gyikwF1tRTRfgiy-ldcsNKef73Ne4JAE1Lvhs' }, // 菜々子さん_日報
-  'ともえ':  { displayName: 'ともえ',     reportId: '1rKUxHw1Rwkc9BQsT9nY_15khBa2bRinJjZpDInOi7-A' }, // ともえさん_日報
-  'はるか':  { displayName: 'はるかさん', reportId: '1ZRulEZaZqUxvhYIliYskskGo2_KDw2dWizN04WgOi1w' }, // はるか_日報new
-  'りお':    { displayName: 'りお',       reportId: '1OLvkp5LXrCEiwnSNVfDK-mWPZ4Dka1l-l25EFRoAQgg' }, // りおさん_日報
-  'ゆうか':  { displayName: 'ゆうか',     reportId: '1MaaS2V8L0KU48-0pPql9_0Sl5nE9aj6Rm6d5ONbTvFk' }, // 優花さん_日報
-  'みおな':  { displayName: 'みおなさん', reportId: '1mPtv-l2u3JKBpKcRG0JZc5bSqw2e630vkfI-Je04Y6k' }, // みおなさん_日報
-};
+var STAFF_LIST = [
+  { displayName: 'あゆみ',     reportId: '17YS1m15AZDCBsFKwRq0LEBGsf7jY4exCTJXyhZfDW9E' }, // yukinoさん_日報
+  { displayName: 'ななこ',     reportId: '1joyW47gyikwF1tRTRfgiy-ldcsNKef73Ne4JAE1Lvhs' }, // 菜々子さん_日報
+  { displayName: 'ともえ',     reportId: '1rKUxHw1Rwkc9BQsT9nY_15khBa2bRinJjZpDInOi7-A' }, // ともえさん_日報
+  { displayName: 'はるかさん', reportId: '1ZRulEZaZqUxvhYIliYskskGo2_KDw2dWizN04WgOi1w' }, // はるか_日報new
+  { displayName: 'りお',       reportId: '1OLvkp5LXrCEiwnSNVfDK-mWPZ4Dka1l-l25EFRoAQgg' }, // りおさん_日報
+  { displayName: 'ゆうか',     reportId: '1MaaS2V8L0KU48-0pPql9_0Sl5nE9aj6Rm6d5ONbTvFk' }, // 優花さん_日報
+  { displayName: 'みおなさん', reportId: '1mPtv-l2u3JKBpKcRG0JZc5bSqw2e630vkfI-Je04Y6k' }, // みおなさん_日報
+];
 
-// 集計シートのデータ開始行（1〜8行目がタイトル/ヘッダー領域）
-const DATA_START_ROW = 9;
+// 集計シートのデータ開始行（1〜7行目がタイトル/ヘッダー領域）
+var DATA_START_ROW  = 9;
+var HEADER_ROW      = 8;
 
-// 列ヘッダー行番号
-const HEADER_ROW = 8;
+// 日報の先頭何行をスキップするか（管理情報・見出し行）
+var REPORT_SKIP_ROW = 6;
+
+var DOW_JP = ['日', '月', '火', '水', '木', '金', '土'];
+
+// ================================================================
+// ヘルパー: 日付を "yyyy/MM/dd(曜)" 形式の文字列にする
+// ================================================================
+
+function formatDateJP(date) {
+  var y   = date.getFullYear();
+  var m   = ('0' + (date.getMonth() + 1)).slice(-2);
+  var d   = ('0' + date.getDate()).slice(-2);
+  var dow = DOW_JP[date.getDay()];
+  return y + '/' + m + '/' + d + '(' + dow + ')';
+}
+
+// ================================================================
+// ヘルパー: セル値を "yyyyMMdd" 8桁文字列に正規化
+// ================================================================
+
+function toYMD(cellVal) {
+  if (!cellVal) return '';
+  if (cellVal instanceof Date) {
+    return Utilities.formatDate(cellVal, 'Asia/Tokyo', 'yyyyMMdd');
+  }
+  var s = String(cellVal);
+  // "2026/03/15(日)" や "2026/3/15" などから数字だけ抽出
+  var digits = s.replace(/[^0-9]/g, '');
+  if (digits.length >= 8) return digits.slice(0, 8);
+  return '';
+}
+
+// ================================================================
+// ヘルパー: テキストから「〇件」パターンの件数合計を取得
+//   全角数字（１２件）にも対応
+// ================================================================
+
+function extractKenCount(text) {
+  var n = text.replace(/[０-９]/g, function(s) {
+    return String.fromCharCode(s.charCodeAt(0) - 0xFEE0);
+  });
+  var matches = n.match(/(\d+)\s*件/g);
+  if (!matches) return 0;
+  var sum = 0;
+  for (var i = 0; i < matches.length; i++) {
+    var m = matches[i].match(/\d+/);
+    if (m) sum += parseInt(m[0], 10);
+  }
+  return sum;
+}
 
 // ================================================================
 // 毎日トリガーで実行するメイン関数
 // ================================================================
 
 function runDailyUpdate() {
-  const today = new Date();
+  var today = new Date();
   today.setHours(0, 0, 0, 0);
 
   Logger.log('=== 日次更新開始: ' + Utilities.formatDate(today, 'Asia/Tokyo', 'yyyy/MM/dd') + ' ===');
@@ -63,7 +111,7 @@ function runDailyUpdate() {
     processDate(today);
 
     // 月末チェック: 今日が月末なら翌月タブを作成
-    const tomorrow = new Date(today);
+    var tomorrow = new Date(today);
     tomorrow.setDate(tomorrow.getDate() + 1);
     if (tomorrow.getMonth() !== today.getMonth()) {
       Logger.log('月末処理: ' + (tomorrow.getMonth() + 1) + '月タブを作成します');
@@ -78,6 +126,7 @@ function runDailyUpdate() {
 
 // ================================================================
 // 指定日のデータを処理
+//   全スタッフの日報を確認し、件数が1以上のスタッフをまとめて1行書き込む
 // ================================================================
 
 function processDate(date) {
@@ -87,97 +136,28 @@ function processDate(date) {
 
   Logger.log('--- 処理日: ' + year + '/' + month + '/' + day + ' ---');
 
-  // 1. 勤務表から担当者を取得
-  var dutyPerson = getDutyPerson(year, month, day);
-  if (!dutyPerson) {
-    Logger.log('担当者なし（休日・未設定）');
+  var respondents = [];
+  var totalCount  = 0;
+
+  for (var i = 0; i < STAFF_LIST.length; i++) {
+    var staff = STAFF_LIST[i];
+    var count = getCountFromReport(staff.reportId, year, month, day);
+    if (count > 0) {
+      respondents.push(staff.displayName);
+      totalCount += count;
+      Logger.log('  ' + staff.displayName + ': ' + count + '件');
+    }
+  }
+
+  if (respondents.length === 0) {
+    Logger.log('対応記録なし（全スタッフ0件）');
     return;
   }
-  Logger.log('担当者（勤務表）: ' + dutyPerson);
 
-  // 2. 担当者設定を解決
-  var staffConfig = resolveStaff(dutyPerson);
-  if (!staffConfig) {
-    Logger.log('担当者設定が未定義: ' + dutyPerson + '（STAFFオブジェクトに追加してください）');
-    return;
-  }
+  var nameStr = respondents.join('、');
+  Logger.log('合計: ' + totalCount + '件 / 担当: ' + nameStr);
 
-  // 3. 日報から対応件数を取得
-  var count = getCountFromReport(staffConfig.reportId, year, month, day);
-  Logger.log('対応件数: ' + count + '件');
-
-  // 4. 集計シートに書き込み
-  writeSummary(year, month, day, staffConfig.displayName, count);
-}
-
-// ================================================================
-// CS部勤務表から担当者名を取得
-//   勤務表の構造: 10行目以降、B列=日, C列=曜, D列=問合せ当番
-// ================================================================
-
-function getDutyPerson(year, month, day) {
-  try {
-    var ss = SpreadsheetApp.openById(SS_ID.schedule);
-    var sheetName = year + '年' + month + '月';
-    var sheet = ss.getSheetByName(sheetName);
-
-    if (!sheet) {
-      Logger.log('勤務表タブなし: ' + sheetName);
-      return null;
-    }
-
-    var lastRow = sheet.getLastRow();
-    // A列〜D列を取得（1行目から最終行まで）
-    var data = sheet.getRange(1, 1, lastRow, 4).getValues();
-
-    // 10行目（インデックス9）以降でB列（インデックス1）の値がdayと一致する行を探す
-    for (var i = 9; i < data.length; i++) {
-      var cellDay = data[i][1]; // B列: 日
-      var dutyCell = data[i][3]; // D列: 問合せ当番
-
-      // 数値・文字列の両方に対応
-      if (Number(cellDay) === day) {
-        var person = String(dutyCell || '').trim();
-        return person || null;
-      }
-    }
-
-    Logger.log('勤務表で' + day + '日のデータが見つかりませんでした');
-    return null;
-
-  } catch (e) {
-    Logger.log('勤務表読み込みエラー: ' + e.message);
-    return null;
-  }
-}
-
-// ================================================================
-// 担当者名からSTAFF設定を解決（部分一致・さん付き対応）
-// ================================================================
-
-function resolveStaff(dutyPerson) {
-  // 完全一致
-  if (STAFF[dutyPerson]) {
-    return STAFF[dutyPerson];
-  }
-
-  // 「さん」「ちゃん」を除いた名前で再検索
-  var cleanName = dutyPerson.replace(/さん$|ちゃん$/, '');
-  if (STAFF[cleanName]) {
-    return STAFF[cleanName];
-  }
-
-  // 部分一致（勤務表の名前がSTAFFキーを含む、またはその逆）
-  var keys = Object.keys(STAFF);
-  for (var i = 0; i < keys.length; i++) {
-    var key = keys[i];
-    if (dutyPerson.indexOf(key) !== -1 || key.indexOf(dutyPerson) !== -1 ||
-        dutyPerson.indexOf(cleanName) !== -1 || cleanName.indexOf(key) !== -1) {
-      return STAFF[key];
-    }
-  }
-
-  return null;
+  writeSummary(date, nameStr, totalCount);
 }
 
 // ================================================================
@@ -187,35 +167,32 @@ function resolveStaff(dutyPerson) {
 function getCountFromReport(reportId, year, month, day) {
   try {
     var ss = SpreadsheetApp.openById(reportId);
-
-    // タブ名候補を生成して検索
     var tabCandidates = generateTabNameCandidates(year, month, day);
     var sheet = null;
 
     for (var i = 0; i < tabCandidates.length; i++) {
       sheet = ss.getSheetByName(tabCandidates[i]);
       if (sheet) {
-        Logger.log('日報タブ発見: "' + tabCandidates[i] + '"');
+        Logger.log('  日報タブ発見: "' + tabCandidates[i] + '"');
         break;
       }
     }
 
     if (!sheet) {
-      Logger.log('日報タブが見つかりません。試行候補: [' + tabCandidates.join(', ') + ']');
+      Logger.log('  日報タブなし: [' + tabCandidates.slice(0, 5).join(', ') + ' ...]');
       return 0;
     }
 
     return extractCountFromSheet(sheet);
 
   } catch (e) {
-    Logger.log('日報読み込みエラー: ' + e.message);
+    Logger.log('  日報読み込みエラー (' + reportId.slice(0, 8) + '...): ' + e.message);
     return 0;
   }
 }
 
 // ================================================================
-// 日付からタブ名候補を生成
-//   各スタッフの日報でタブ名フォーマットが異なるため、多様な形式を試行
+// 日付からタブ名候補を生成（14形式）
 // ================================================================
 
 function generateTabNameCandidates(year, month, day) {
@@ -226,19 +203,19 @@ function generateTabNameCandidates(year, month, day) {
   var YY = String(year).slice(2);
 
   return [
-    MM + DD,                          // 0315         ← yukinoさん等の標準形式
-    M + DD,                           // 315
-    MM + D,                           // 0315
-    M + D,                            // 315
-    M + '/' + D,                      // 3/15
-    MM + '/' + DD,                    // 03/15
-    M + '月' + D + '日',             // 3月15日
-    M + '月' + D,                     // 3月15
+    MM + DD,                           // 0315
+    M  + DD,                           // 315
+    MM + D,                            // 0315 (same as above when day >= 10)
+    M  + D,                            // 315
+    M  + '/' + D,                      // 3/15
+    MM + '/' + DD,                     // 03/15
+    M  + '月' + D + '日',             // 3月15日
+    M  + '月' + D,                     // 3月15
     String(year) + '/' + M + '/' + D, // 2026/3/15
-    String(year) + MM + DD,           // 20260315
-    YY + MM + DD,                     // 260315
-    M + '-' + D,                      // 3-15
-    M + '.' + D,                      // 3.15
+    String(year) + MM + DD,            // 20260315
+    YY + MM + DD,                      // 260315
+    M  + '-' + D,                      // 3-15
+    M  + '.' + D,                      // 3.15
     String(year) + '.' + M + '.' + D, // 2026.3.15
   ];
 }
@@ -246,131 +223,125 @@ function generateTabNameCandidates(year, month, day) {
 // ================================================================
 // 日報シートから合計対応件数を抽出
 //
+// 行1〜REPORT_SKIP_ROW（デフォルト6行）はスキップ
+//
 // 抽出戦略（優先順位順）:
-//   1. 「合計」という文字を含む行のC〜I列の数値を合計
-//   2. 「お問い合わせ」「問合せ」「対応」を含む行のC〜I列を合計
-//   3. 数値が入っている行のうち最も多いC〜I列の合計
+//   1. 「合計」を含む行のC〜I列の数値合計
+//   2. 全セルの「〇件」テキストパターン合計（全角数字対応）
+//   3. C〜I列の数値合計（フォールバック）
 // ================================================================
 
 function extractCountFromSheet(sheet) {
-  var data = sheet.getDataRange().getValues();
+  var all  = sheet.getDataRange().getValues();
+  var data = all.slice(REPORT_SKIP_ROW); // 行1〜6をスキップ
 
-  // 戦略1: 「合計」を含む行
+  // 戦略1: 「合計」を含む行のC〜I列数値合計
   for (var i = 0; i < data.length; i++) {
     var a = String(data[i][0] || '');
     var b = String(data[i][1] || '');
     if (a.indexOf('合計') !== -1 || b.indexOf('合計') !== -1) {
-      var total = sumColumnsCI(data[i]);
-      if (total > 0) {
-        Logger.log('  → 「合計」行 (行' + (i + 1) + ') から取得: ' + total);
-        return total;
+      var t = sumColumnsCI(data[i]);
+      if (t > 0) {
+        Logger.log('    → 「合計」行 (シート行' + (REPORT_SKIP_ROW + i + 1) + ') から取得: ' + t);
+        return t;
       }
     }
   }
 
-  // 戦略2: 「問い合わせ」「対応」を含む行の合計
-  var keywordTotal = 0;
+  // 戦略2: 「〇件」パターン（全角数字含む）
+  var kenTotal = 0;
   for (var i = 0; i < data.length; i++) {
-    var a = String(data[i][0] || '');
-    var b = String(data[i][1] || '');
-    var isKeywordRow = (
-      a.indexOf('問い合わせ') !== -1 || a.indexOf('問合せ') !== -1 || a.indexOf('対応') !== -1 ||
-      b.indexOf('問い合わせ') !== -1 || b.indexOf('問合せ') !== -1 || b.indexOf('対応') !== -1
-    );
-    if (isKeywordRow) {
-      keywordTotal += sumColumnsCI(data[i]);
+    for (var c = 0; c < data[i].length; c++) {
+      kenTotal += extractKenCount(String(data[i][c] || ''));
     }
   }
-  if (keywordTotal > 0) {
-    Logger.log('  → キーワード行の合計から取得: ' + keywordTotal);
-    return keywordTotal;
+  if (kenTotal > 0) {
+    Logger.log('    → 〇件パターンから取得: ' + kenTotal);
+    return kenTotal;
   }
 
-  // 戦略3: 全行のC〜I列の合計（ヘッダー行を除く）
+  // 戦略3: C〜I列の数値合計（フォールバック）
   var grandTotal = 0;
-  for (var i = 1; i < data.length; i++) {
+  for (var i = 0; i < data.length; i++) {
     grandTotal += sumColumnsCI(data[i]);
   }
-  Logger.log('  → 全行合計から取得: ' + grandTotal);
+  if (grandTotal > 0) {
+    Logger.log('    → C〜I列合計から取得: ' + grandTotal);
+  }
   return grandTotal;
 }
 
 // C列（インデックス2）〜I列（インデックス8）の正数を合計
 function sumColumnsCI(row) {
   var sum = 0;
-  var endCol = Math.min(row.length - 1, 8); // I列はインデックス8
-  for (var c = 2; c <= endCol; c++) {
-    var val = row[c];
-    if (typeof val === 'number' && !isNaN(val) && val > 0) {
-      sum += val;
-    }
+  var end = Math.min(row.length - 1, 8);
+  for (var c = 2; c <= end; c++) {
+    var v = row[c];
+    if (typeof v === 'number' && !isNaN(v) && v > 0) sum += v;
   }
   return sum;
 }
 
 // ================================================================
 // 集計シートにデータを書き込む
+//   同日付の既存行があれば削除してから新規挿入
 // ================================================================
 
-function writeSummary(year, month, day, displayName, count) {
+function writeSummary(date, nameStr, count) {
   try {
-    var ss = SpreadsheetApp.openById(SS_ID.summary);
+    var ss    = SpreadsheetApp.openById(SS_ID.summary);
+    var year  = date.getFullYear();
+    var month = date.getMonth() + 1;
     var sheetName = year + '年' + month + '月';
     var sheet = ss.getSheetByName(sheetName);
 
     if (!sheet) {
-      Logger.log('集計シートタブなし: ' + sheetName);
-      return;
+      Logger.log('集計シートタブなし: ' + sheetName + ' → タブを作成します');
+      sheet = createMonthTab(year, month);
     }
 
-    var targetDate = new Date(year, month - 1, day);
-    var targetDateStr = Utilities.formatDate(targetDate, 'Asia/Tokyo', 'yyyyMMdd');
+    var dateStr   = formatDateJP(date);
+    var targetYMD = toYMD(date);
 
-    // 既存データの検索（同日付の行があれば更新）
-    var lastRow = Math.max(sheet.getLastRow(), DATA_START_ROW);
-    var rowCount = lastRow - DATA_START_ROW + 1;
-    var existingData = (rowCount > 0)
-      ? sheet.getRange(DATA_START_ROW, 1, rowCount, 1).getValues()
-      : [];
-
-    var writeRow = -1;
-    for (var i = 0; i < existingData.length; i++) {
-      var cellVal = existingData[i][0];
-      if (!cellVal) continue;
-      var cellDate = (cellVal instanceof Date) ? cellVal : new Date(cellVal);
-      if (Utilities.formatDate(cellDate, 'Asia/Tokyo', 'yyyyMMdd') === targetDateStr) {
-        writeRow = DATA_START_ROW + i;
-        break;
+    // ---- 同日付の既存行を後ろから削除 ----
+    var lastRow = sheet.getLastRow();
+    if (lastRow >= DATA_START_ROW) {
+      var existVals = sheet.getRange(DATA_START_ROW, 1, lastRow - DATA_START_ROW + 1, 1).getDisplayValues();
+      var delRows = [];
+      for (var i = 0; i < existVals.length; i++) {
+        if (toYMD(existVals[i][0]) === targetYMD) {
+          delRows.push(DATA_START_ROW + i);
+        }
+      }
+      // 後ろから削除（行番号がずれないように）
+      for (var j = delRows.length - 1; j >= 0; j--) {
+        sheet.getRange(delRows[j], 1, 1, 4).clearContent();
+        SpreadsheetApp.flush();
+        sheet.deleteRow(delRows[j]);
+        SpreadsheetApp.flush();
       }
     }
 
-    // 既存行がない場合、日付順の位置に行を挿入
-    if (writeRow === -1) {
-      writeRow = findSortedInsertRow(sheet, targetDate);
-      if (writeRow <= sheet.getLastRow()) {
-        sheet.insertRowBefore(writeRow);
-      }
+    // ---- 日付順の挿入位置を探して行挿入 ----
+    var writeRow = findSortedInsertRow(sheet, date);
+    if (writeRow <= sheet.getLastRow()) {
+      sheet.insertRowBefore(writeRow);
+      SpreadsheetApp.flush();
     }
 
-    // A〜D列に値を書き込む
-    sheet.getRange(writeRow, 1).setValue(targetDate).setNumberFormat('yyyy/m/d');
-    sheet.getRange(writeRow, 2).setValue(displayName);
-    sheet.getRange(writeRow, 3).setValue(count);
-    sheet.getRange(writeRow, 4).setValue(''); // 備考は空白（手動記入欄）
+    // ---- A〜D列に一括書き込み（日付はテキスト文字列） ----
+    sheet.getRange(writeRow, 1, 1, 4).setValues([[dateStr, nameStr, count, '']]);
+    SpreadsheetApp.flush();
 
-    // 書式・色を適用
-    applyRowFormat(sheet, writeRow, targetDate);
-
-    Logger.log('書き込み完了: 行' + writeRow + ' / ' + year + '/' + month + '/' + day +
-               ' / ' + displayName + ' / ' + count + '件');
+    Logger.log('書き込み完了: 行' + writeRow + ' / ' + dateStr + ' / ' + nameStr + ' / ' + count + '件');
 
   } catch (e) {
-    Logger.log('集計シート書き込みエラー: ' + e.message);
+    Logger.log('集計シート書き込みエラー: ' + e.message + '\n' + e.stack);
   }
 }
 
 // ================================================================
-// 日付順の挿入位置を探す
+// 日付順の挿入位置を返す
 // ================================================================
 
 function findSortedInsertRow(sheet, targetDate) {
@@ -378,60 +349,21 @@ function findSortedInsertRow(sheet, targetDate) {
   if (lastRow < DATA_START_ROW) return DATA_START_ROW;
 
   var rowCount = lastRow - DATA_START_ROW + 1;
-  var values = sheet.getRange(DATA_START_ROW, 1, rowCount, 1).getValues();
+  var vals = sheet.getRange(DATA_START_ROW, 1, rowCount, 1).getDisplayValues();
 
-  for (var i = 0; i < values.length; i++) {
-    var cellVal = values[i][0];
-    if (!cellVal) return DATA_START_ROW + i;
-    var cellDate = (cellVal instanceof Date) ? cellVal : new Date(cellVal);
-    if (cellDate > targetDate) return DATA_START_ROW + i;
+  for (var i = 0; i < vals.length; i++) {
+    var cv = vals[i][0];
+    if (!cv) return DATA_START_ROW + i;
+    var ymd = toYMD(cv);
+    var tgt = toYMD(targetDate);
+    if (ymd && tgt && ymd > tgt) return DATA_START_ROW + i;
   }
 
   return lastRow + 1;
 }
 
 // ================================================================
-// データ行に書式（色・罫線・配置）を適用
-//
-// ※ 添付画像が確認できなかったため、代表的な配色を設定しています。
-//    実際の画像の色に合わせて下記の bgWeekday/bgSat/bgSun を変更してください。
-// ================================================================
-
-function applyRowFormat(sheet, row, date) {
-  var range = sheet.getRange(row, 1, 1, 4);
-  var dow = date.getDay(); // 0=日, 6=土
-
-  // --- 色設定（画像に合わせて変更してください） ---
-  var bgWeekdayOdd  = '#FFFFFF'; // 平日奇数行: 白
-  var bgWeekdayEven = '#F3F3F3'; // 平日偶数行: 薄グレー
-  var bgSaturday    = '#DDEEFF'; // 土曜: 薄ブルー
-  var bgSunday      = '#FFE4E4'; // 日曜: 薄ピンク
-  // -------------------------------------------------
-
-  var bgColor;
-  if (dow === 6) {
-    bgColor = bgSaturday;
-  } else if (dow === 0) {
-    bgColor = bgSunday;
-  } else {
-    bgColor = (row % 2 === 0) ? bgWeekdayEven : bgWeekdayOdd;
-  }
-
-  range.setBackground(bgColor);
-  range.setBorder(
-    true, true, true, true, true, true,
-    '#CCCCCC', SpreadsheetApp.BorderStyle.SOLID
-  );
-
-  // 各列の配置
-  sheet.getRange(row, 1).setHorizontalAlignment('center'); // 日付
-  sheet.getRange(row, 2).setHorizontalAlignment('center'); // 担当者
-  sheet.getRange(row, 3).setHorizontalAlignment('center'); // 対応件数
-  sheet.getRange(row, 4).setHorizontalAlignment('left');   // 備考
-}
-
-// ================================================================
-// 月タブを新規作成し、ヘッダーを設定
+// 月タブを新規作成してヘッダーを設定
 // ================================================================
 
 function createMonthTab(year, month) {
@@ -443,7 +375,6 @@ function createMonthTab(year, month) {
     return ss.getSheetByName(sheetName);
   }
 
-  // 既存タブの最後に追加
   var newSheet = ss.insertSheet(sheetName, ss.getSheets().length);
   setupMonthHeader(newSheet, year, month);
 
@@ -452,121 +383,36 @@ function createMonthTab(year, month) {
 }
 
 // ================================================================
-// 月タブのヘッダー・列幅・ドロップダウンを設定
+// 月タブのヘッダー・列幅を設定
 // ================================================================
 
 function setupMonthHeader(sheet, year, month) {
-  // --- 列幅 ---
-  sheet.setColumnWidth(1, 120); // A: 日付
-  sheet.setColumnWidth(2, 120); // B: 担当者
+  sheet.setColumnWidth(1, 160); // A: 日付
+  sheet.setColumnWidth(2, 160); // B: 担当者
   sheet.setColumnWidth(3, 100); // C: 対応件数
   sheet.setColumnWidth(4, 280); // D: 備考
 
-  // --- 1行目: タイトル ---
-  var titleRange = sheet.getRange(1, 1, 1, 4);
-  titleRange.merge()
-            .setValue(year + '年' + month + '月 お問い合わせ件数集計')
-            .setBackground('#2E75B6')
-            .setFontColor('#FFFFFF')
-            .setFontWeight('bold')
-            .setFontSize(13)
-            .setHorizontalAlignment('center')
-            .setVerticalAlignment('middle');
+  // 1行目: タイトル
+  sheet.getRange(1, 1, 1, 4)
+       .merge()
+       .setValue(year + '年' + month + '月 お問い合わせ件数集計')
+       .setFontWeight('bold')
+       .setFontSize(13)
+       .setHorizontalAlignment('center')
+       .setVerticalAlignment('middle');
   sheet.setRowHeight(1, 40);
 
-  // --- 2〜7行目: 空白エリア（必要に応じてサマリー等を追加） ---
-
-  // --- 8行目: 列ヘッダー ---
-  var headerRange = sheet.getRange(HEADER_ROW, 1, 1, 4);
-  headerRange.setValues([['日付', '担当者', '対応件数', '備考']])
-             .setBackground('#4472C4')
-             .setFontColor('#FFFFFF')
-             .setFontWeight('bold')
-             .setHorizontalAlignment('center')
-             .setVerticalAlignment('middle');
+  // 8行目: 列ヘッダー
+  sheet.getRange(HEADER_ROW, 1, 1, 4)
+       .setValues([['日付', '担当者', '対応件数', '備考']])
+       .setFontWeight('bold')
+       .setHorizontalAlignment('center')
+       .setVerticalAlignment('middle');
   sheet.setRowHeight(HEADER_ROW, 25);
-
-  // --- B列にプルダウン（担当者リスト）を設定 ---
-  setupDropdown(sheet);
 }
 
 // ================================================================
-// B列（担当者）にドロップダウンを設定
-// ================================================================
-
-function setupDropdown(sheet) {
-  var names = Object.keys(STAFF).map(function(k) { return STAFF[k].displayName; });
-  var rule = SpreadsheetApp.newDataValidation()
-    .requireValueInList(names, true)
-    .build();
-
-  // DATA_START_ROW行目から100行分に設定
-  sheet.getRange(DATA_START_ROW, 2, 100, 1).setDataValidation(rule);
-}
-
-// ================================================================
-// 日付順の挿入位置を探す（既存タブ用）
-// ================================================================
-
-// ================================================================
-// 3/15 以降のデータを一括処理（初回実行用）
-// ================================================================
-
-function processMarchFromStart() {
-  Logger.log('=== 3月15日から本日までの一括処理開始 ===');
-
-  var start = new Date(2026, 2, 15); // 2026/3/15
-  var today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  var current = new Date(start);
-  var count = 0;
-
-  while (current <= today) {
-    Logger.log('処理: ' + Utilities.formatDate(current, 'Asia/Tokyo', 'yyyy/MM/dd'));
-    processDate(new Date(current));
-    current.setDate(current.getDate() + 1);
-    count++;
-
-    // 20件ごとに少し待機（API制限対策）
-    if (count % 20 === 0) {
-      Utilities.sleep(2000);
-    }
-  }
-
-  Logger.log('=== 一括処理完了: ' + count + '日分 ===');
-}
-
-// ================================================================
-// 任意の期間を一括処理（手動実行用）
-//   使い方: processBatch('2026/1/1', '2026/3/14') のように引数を変えて実行
-// ================================================================
-
-function processBatch() {
-  var startStr = '2026/1/1';  // ← 開始日を変更してください
-  var endStr   = '2026/3/14'; // ← 終了日を変更してください
-
-  var parts = startStr.split('/');
-  var start = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
-  parts = endStr.split('/');
-  var end = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
-
-  var current = new Date(start);
-  var count = 0;
-
-  while (current <= end) {
-    Logger.log('処理: ' + Utilities.formatDate(current, 'Asia/Tokyo', 'yyyy/MM/dd'));
-    processDate(new Date(current));
-    current.setDate(current.getDate() + 1);
-    count++;
-    if (count % 20 === 0) Utilities.sleep(2000);
-  }
-
-  Logger.log('一括処理完了: ' + count + '日分');
-}
-
-// ================================================================
-// 今日のデータだけを手動処理
+// 今日のデータだけを手動処理（テスト用）
 // ================================================================
 
 function processToday() {
@@ -576,25 +422,55 @@ function processToday() {
 }
 
 // ================================================================
-// 既存の各月タブにドロップダウンを設定（初回セットアップ用）
+// 3/15 以降のデータを一括処理（初回実行用）
 // ================================================================
 
-function initialSetupDropdowns() {
-  var targets = [
-    { year: 2026, month: 1 },
-    { year: 2026, month: 2 },
-    { year: 2026, month: 3 },
-  ];
+function processMarchFromStart() {
+  Logger.log('=== 3月15日から本日までの一括処理開始 ===');
 
-  var ss = SpreadsheetApp.openById(SS_ID.summary);
-  targets.forEach(function(t) {
-    var sheetName = t.year + '年' + t.month + '月';
-    var sheet = ss.getSheetByName(sheetName);
-    if (sheet) {
-      setupDropdown(sheet);
-      Logger.log('ドロップダウン設定完了: ' + sheetName);
-    }
-  });
+  var start   = new Date(2026, 2, 15); // 2026/3/15
+  var today   = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  var current = new Date(start);
+  var cnt     = 0;
+
+  while (current <= today) {
+    Logger.log('処理: ' + Utilities.formatDate(current, 'Asia/Tokyo', 'yyyy/MM/dd'));
+    processDate(new Date(current));
+    current.setDate(current.getDate() + 1);
+    cnt++;
+    if (cnt % 20 === 0) Utilities.sleep(2000); // API制限対策
+  }
+
+  Logger.log('=== 一括処理完了: ' + cnt + '日分 ===');
+}
+
+// ================================================================
+// 任意の期間を一括処理（手動実行用）
+//   processBatch() 内の日付を変更してから実行
+// ================================================================
+
+function processBatch() {
+  var startStr = '2026/1/1';  // ← 開始日
+  var endStr   = '2026/3/14'; // ← 終了日
+
+  var sp = startStr.split('/');
+  var ep = endStr.split('/');
+  var start   = new Date(Number(sp[0]), Number(sp[1]) - 1, Number(sp[2]));
+  var end     = new Date(Number(ep[0]), Number(ep[1]) - 1, Number(ep[2]));
+  var current = new Date(start);
+  var cnt     = 0;
+
+  while (current <= end) {
+    Logger.log('処理: ' + Utilities.formatDate(current, 'Asia/Tokyo', 'yyyy/MM/dd'));
+    processDate(new Date(current));
+    current.setDate(current.getDate() + 1);
+    cnt++;
+    if (cnt % 20 === 0) Utilities.sleep(2000);
+  }
+
+  Logger.log('一括処理完了: ' + cnt + '日分');
 }
 
 // ================================================================
@@ -602,7 +478,6 @@ function initialSetupDropdowns() {
 // ================================================================
 
 function setupDailyTrigger() {
-  // 既存の同名トリガーを削除
   var existing = ScriptApp.getProjectTriggers();
   for (var i = 0; i < existing.length; i++) {
     if (existing[i].getHandlerFunction() === 'runDailyUpdate') {
@@ -611,9 +486,6 @@ function setupDailyTrigger() {
     }
   }
 
-  // 毎日午前7時に実行
-  // ※ スクリプトのタイムゾーンを Asia/Tokyo に設定しておいてください
-  //   （スクリプトエディタ > プロジェクト設定 > タイムゾーン）
   ScriptApp.newTrigger('runDailyUpdate')
     .timeBased()
     .everyDays(1)
