@@ -12,13 +12,17 @@ var CS_HYOKA_CONFIG = {
   // 【CS】数値管理（新）スプシID
   csKanriSsId: '1sWv3335Fkou2Ohet6sQOuwZUysIIWZhCjUUxiSo-5Bc',
 
-  // 万垢率（月未記録）タブ名
+  // 万垢率シートをgidで直接指定（タブ名変更に強い）
+  // URL末尾の gid=1750450396 から取得
+  mankokuSheetGid: 1750450396,
+
+  // ↓ タブ名でも探すフォールバック用（gidで見つからない場合）
   mankokuTabName: '万垢率（月未記録）',
 
   // メンバーの日報・評価制度管理スプシID
   nippouSsId: '1gIygjcHKgGvg3j0RU0LxzrPeGxNF9cJeOrxznHqwOAo',
 
-  // 日報管理スプシでメンバー名が入っている列（0始まり: A列=0, B列=1 ...）
+  // 日報管理スプシでメンバー名が入っている列（0始まり: A列=0）
   memberNameColInNippou: 0,
 
   // メンバー一覧（15名）
@@ -51,15 +55,17 @@ var CS_HYOKA_CONFIG = {
   ],
 
   // 日報管理スプシの月別達成率設定
-  // 【要確認】nippouTabName を実際のタブ名に変更してください
-  // achievementColIndices: 達成率が入っている列（0始まり: E=4, G=6, I=8）
+  // スクリーンショットより: タブ名は "12月" "1月" 形式
+  // achievementColIndices: E列=4, G列=6, I列=8（0始まり）
   nippouMonthConfig: {
     '202512': {
-      nippouTabName: '2025年12月', // ← 実際のタブ名に変更
+      nippouTabName: '12月',
+      nippouTabGid: null,  // gidが判明すれば数値で設定するとより確実
       achievementColIndices: [4, 6, 8],
     },
     '202601': {
-      nippouTabName: '2026年1月',  // ← 実際のタブ名に変更
+      nippouTabName: '1月',
+      nippouTabGid: 1754320975,  // URL gid=1754320975 より確定
       achievementColIndices: [4, 6, 8],
     },
   },
@@ -84,12 +90,17 @@ function runAll() {
 function setRow13_MankokuRate() {
   var cfg = CS_HYOKA_CONFIG;
   var csKanriSS = SpreadsheetApp.openById(cfg.csKanriSsId);
-  var mankokuSheet = csKanriSS.getSheetByName(cfg.mankokuTabName);
+
+  // gid優先、見つからなければタブ名で検索
+  var mankokuSheet = csHyokaGetSheetByGid(csKanriSS, cfg.mankokuSheetGid)
+                   || csKanriSS.getSheetByName(cfg.mankokuTabName);
 
   if (!mankokuSheet) {
-    Logger.log('❌ シートが見つかりません: ' + cfg.mankokuTabName);
+    Logger.log('❌ 万垢率シートが見つかりません（gid=' + cfg.mankokuSheetGid + ', タブ名=' + cfg.mankokuTabName + '）');
+    Logger.log('   実在するタブ一覧: ' + csKanriSS.getSheets().map(function(s){return s.getName();}).join(', '));
     return;
   }
+  Logger.log('✅ 万垢率シート取得: ' + mankokuSheet.getName());
 
   var data = mankokuSheet.getDataRange().getValues();
   Logger.log('万垢率シート 取得行数: ' + data.length);
@@ -166,11 +177,15 @@ function setRow14_AchievementRate() {
       continue;
     }
 
-    var nippouSheet = nippouSS.getSheetByName(config.nippouTabName);
+    // gid優先、見つからなければタブ名で検索
+    var nippouSheet = (config.nippouTabGid ? csHyokaGetSheetByGid(nippouSS, config.nippouTabGid) : null)
+                    || nippouSS.getSheetByName(config.nippouTabName);
     if (!nippouSheet) {
       Logger.log('❌ 日報シートが見つかりません: ' + config.nippouTabName);
+      Logger.log('   実在するタブ一覧: ' + nippouSS.getSheets().map(function(s){return s.getName();}).join(', '));
       continue;
     }
+    Logger.log('✅ 日報シート取得: ' + nippouSheet.getName());
 
     var data = nippouSheet.getDataRange().getValues();
     Logger.log(m.ymKey + ' 日報シート 取得行数: ' + data.length);
@@ -246,6 +261,18 @@ function csHyokaCalcMemberAvg(data, memberName, colIndices, nameColIdx) {
   }
 
   return count > 0 ? sum / count : null;
+}
+
+// ==================================================
+// ヘルパー: シートIDでタブを取得（タブ名変更に強い）
+// ==================================================
+function csHyokaGetSheetByGid(ss, gid) {
+  if (!gid) return null;
+  var sheets = ss.getSheets();
+  for (var i = 0; i < sheets.length; i++) {
+    if (sheets[i].getSheetId() == gid) return sheets[i];
+  }
+  return null;
 }
 
 // ==================================================
