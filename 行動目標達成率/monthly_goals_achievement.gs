@@ -237,10 +237,17 @@ function _updateMonthData(sheet, month) {
         const achieve = achieveValues[j][0];
         const hasData = (kr !== null && kr !== '' && kr !== undefined);
         rowData.push(hasData ? kr : '');
-        rowData.push(hasData ? achieve : '');
+        rowData.push(hasData ? _formatPercent(achieve) : '');
       }
 
-      sheet.getRange(row, startCol, 1, COLS_PER_MONTH).setValues([rowData]);
+      const dataRange = sheet.getRange(row, startCol, 1, COLS_PER_MONTH);
+      dataRange.setValues([rowData]);
+
+      // Key Result列（startCol, startCol+2, startCol+4）を縦方向中央揃え
+      for (let j = 0; j < 3; j++) {
+        sheet.getRange(row, startCol + j * 2).setVerticalAlignment('middle');
+      }
+
       Logger.log(`${member.name}: ${month}月 行${row}に書き込み完了`);
 
     } catch (e) {
@@ -255,6 +262,22 @@ function _updateMonthData(sheet, month) {
 // ============================================================
 function _getMonthStartCol(month) {
   return MONTH_START_COL + (month - 1) * COLS_PER_MONTH;
+}
+
+// ============================================================
+// 達成率フォーマット
+//   小数形式（0〜1）: ceil(×100)% → 0.8566 → 86%
+//   パーセント形式（>1）: floor()% → 95.2 → 95%
+// ============================================================
+function _formatPercent(value) {
+  if (value === null || value === '' || value === undefined) return '';
+  var num = Number(value);
+  if (isNaN(num)) return value;
+  if (num >= 0 && num <= 1) {
+    return Math.ceil(num * 100) + '%';
+  } else {
+    return Math.floor(num) + '%';
+  }
 }
 
 // ============================================================
