@@ -34,7 +34,7 @@ var MEMBERS = [
   { name: '宇梶知恵',  ssId: '1vLIsuqdOoWrmH-EXdBkUL3XSkcYxl5sEW7NGillEviI' },
   { name: '増子真也子', ssId: '1sbHXZaFivRzliSZEX72rvLFN4EU7bR6ltXbB39lZHVc' },
   { name: '川端歩実',  ssId: '1sLz2fvbPOA1mwwGAUOtn2zOO97XosnbI1jXqJ2n2vlc' },
-  { name: '田中里奈',  ssId: '1LZisdyfMmShNsD0cgZtiLZe7uyUPfDDUrLv6U4h_ra0' },
+  { name: '田中里奈',  ssId: '1wKSMquCgtTtDjd5K-3PCpEkW-EgqZ3LoUT6Ec-nBwGI' },
   { name: '山下優花',  ssId: '15PtZ4__btQ2UxpBNPbGdfGd8dKpjenRAT6Mrn3bMVck' },
   { name: '中村八重子', ssId: '1QI8POM4hZAkjjwSeWwamxDmoUx4-zNRD3CTLS0SJyhs' },
   { name: '佐藤大河',  ssId: '1PMGKmUaU2hze5N4Ar7eCcU_uJz-jQThdq_3eGWuI_kw' },
@@ -222,13 +222,12 @@ function _updateMonthData(sheet, month) {
         continue;
       }
 
-      // A21:A23（Key Result）と E21:E23（達成率）を取得
-      // ※ Key Result セルはA列とB列が結合されており、左端のA列に値が格納されている
-      const krValues      = srcSheet.getRange('A21:A23').getValues();
+      // B21:B23（Key Result）と E21:E23（達成率）を取得
+      const krValues      = srcSheet.getRange('B21:B23').getValues();
       const achieveValues = srcSheet.getRange('E21:E23').getValues();
 
       // 読み取り値をログ出力（デバッグ用）
-      Logger.log(`${member.name} ${month}月 読取値 A21=${krValues[0][0]} A22=${krValues[1][0]} A23=${krValues[2][0]} / E21=${achieveValues[0][0]} E22=${achieveValues[1][0]} E23=${achieveValues[2][0]}`);
+      Logger.log(`${member.name} ${month}月 読取値 B21=${krValues[0][0]} B22=${krValues[1][0]} B23=${krValues[2][0]} / E21=${achieveValues[0][0]} E22=${achieveValues[1][0]} E23=${achieveValues[2][0]}`);
 
       // 6セル分のデータを組み立て
       const rowData = [];
@@ -266,18 +265,15 @@ function _getMonthStartCol(month) {
 
 // ============================================================
 // 達成率フォーマット
-//   小数形式（0〜1）: ceil(×100)% → 0.8566 → 86%
-//   パーセント形式（>1）: floor()% → 95.2 → 95%
+//   E列の値はすべて小数形式（例: 0.8566=86%, 1.17=117%）
+//   → ×100 して切り上げで整数%表示
+//   例: 0.8566 → 86%、1.17 → 117%、0.952 → 96%
 // ============================================================
 function _formatPercent(value) {
   if (value === null || value === '' || value === undefined) return '';
   var num = Number(value);
   if (isNaN(num)) return value;
-  if (num >= 0 && num <= 1) {
-    return Math.ceil(num * 100) + '%';
-  } else {
-    return Math.floor(num) + '%';
-  }
+  return Math.ceil(num * 100) + '%';
 }
 
 // ============================================================
@@ -301,9 +297,9 @@ function debugCheckSource() {
       if (!srcSheet) {
         row.status = '定量評価シート_1月 タブなし';
       } else {
-        var kr  = srcSheet.getRange('A21:A23').getValues();
+        var kr  = srcSheet.getRange('B21:B23').getValues();
         var ach = srcSheet.getRange('E21:E23').getValues();
-        row.A21 = kr[0][0];  row.A22 = kr[1][0];  row.A23 = kr[2][0];
+        row.B21 = kr[0][0];  row.B22 = kr[1][0];  row.B23 = kr[2][0];
         row.E21 = ach[0][0]; row.E22 = ach[1][0]; row.E23 = ach[2][0];
         row.status = 'OK';
       }
