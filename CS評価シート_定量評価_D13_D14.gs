@@ -149,8 +149,11 @@ function setRow13_MankokuRate() {
 
         var value = mankokuByMonth[m.ymKey];
         if (value !== undefined) {
-          sheet.getRange('D13').setValue(value);
-          Logger.log('✅ ' + member.name + ' / ' + tabName + ' / D13 = ' + value);
+          var rounded = Math.round(value * 100) / 100;
+          var cell = sheet.getRange('D13');
+          cell.setValue(rounded);
+          cell.setNumberFormat('0%');
+          Logger.log('✅ ' + member.name + ' / ' + tabName + ' / D13 = ' + (rounded * 100) + '%');
         } else {
           Logger.log('⚠️ ' + member.name + ' / ' + tabName + ': ' + m.ymKey + ' の万垢率データなし');
         }
@@ -227,8 +230,11 @@ function setRow14_AchievementRate() {
           continue;
         }
 
-        sheet.getRange('D14').setValue(finalAvg);
-        Logger.log('✅ ' + member.name + ' / ' + tabName + ' / D14 = ' + finalAvg);
+        var roundedAvg = Math.round(finalAvg * 100) / 100;
+        var cell14 = sheet.getRange('D14');
+        cell14.setValue(roundedAvg);
+        cell14.setNumberFormat('0%');
+        Logger.log('✅ ' + member.name + ' / ' + tabName + ' / D14 = ' + (roundedAvg * 100) + '%');
       } catch (e) {
         Logger.log('❌ ' + member.name + ' でエラー: ' + e.message);
       }
