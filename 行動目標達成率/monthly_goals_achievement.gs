@@ -5,7 +5,7 @@
 // 【シート構造】
 // 行1: A=名前, B=日報, C=評価シート | D〜: 1月[6列], 2月[6列], ... 12月[6列]
 // 行2: （空）  （空）  （空）       | Key Result, 達成率 × 3セット × 各月
-// 行3〜17: メンバー15名
+// 行3〜: メンバー（名前ベースで行を検索するため行数は可変）
 // ============================================================
 
 // ---- 設定 ----
@@ -33,13 +33,15 @@ var MEMBERS = [
   { name: '久保梨生',  ssId: '10CU-78ByNYhzr5LuIhK8makS1uZ_LSPK8HBuFGC9hhU' },
   { name: '宇梶知恵',  ssId: '1vLIsuqdOoWrmH-EXdBkUL3XSkcYxl5sEW7NGillEviI' },
   { name: '増子真也子', ssId: '1sbHXZaFivRzliSZEX72rvLFN4EU7bR6ltXbB39lZHVc' },
-  { name: '川端歩実',  ssId: '1sLz2fvbPOA1mwwGAUOtn2zOO97XosnbI1jXqJ2n2vlc' },
-  { name: '田中里奈',  ssId: '1wKSMquCgtTtDjd5K-3PCpEkW-EgqZ3LoUT6Ec-nBwGI' },
+  // tabIds: タブ名で見つからない場合にシートIDで取得するフォールバック用（月番号 → gid）
+  { name: '川端歩実',  ssId: '1sLz2fvbPOA1mwwGAUOtn2zOO97XosnbI1jXqJ2n2vlc', tabIds: { 2: 1784140390 } },
+  { name: '田中里奈',  ssId: '1LZisdyfMmShNsD0cgZtiLZe7uyUPfDDUrLv6U4h_ra0' },
   { name: '山下優花',  ssId: '15PtZ4__btQ2UxpBNPbGdfGd8dKpjenRAT6Mrn3bMVck' },
   { name: '中村八重子', ssId: '1QI8POM4hZAkjjwSeWwamxDmoUx4-zNRD3CTLS0SJyhs' },
   { name: '佐藤大河',  ssId: '1PMGKmUaU2hze5N4Ar7eCcU_uJz-jQThdq_3eGWuI_kw' },
   { name: '青木博資',  ssId: '1PecGIyJDbHy2y1yXIia0Ada1HENe3qY6W-HSppiyUTc' },
   { name: '田畑秀晃',  ssId: '1a7K7N062cHMRTwX8lYpujRGH6b6z1s9bDf--v_DJZ7M' },
+  { name: '田中春奈',  ssId: '1vmMTNe38hVlvcbK2s21MU70Dwi1W7VYqppLsfKJ3z2Y' },
 ];
 
 // ============================================================
@@ -214,7 +216,15 @@ function _updateMonthData(sheet, month) {
 
     try {
       const memberSS = SpreadsheetApp.openById(member.ssId);
-      const srcSheet = memberSS.getSheetByName(srcTabName);
+      let srcSheet = memberSS.getSheetByName(srcTabName);
+
+      // タブ名で見つからない場合、tabIds に gid が指定されていればIDで再検索
+      if (!srcSheet && member.tabIds && member.tabIds[month]) {
+        srcSheet = _getSheetById(memberSS, member.tabIds[month]);
+        if (srcSheet) {
+          Logger.log(`${member.name}: タブ名 "${srcTabName}" が見つからないため、ID ${member.tabIds[month]} で "${srcSheet.getName()}" を取得`);
+        }
+      }
 
       if (!srcSheet) {
         Logger.log(`${member.name}: タブ "${srcTabName}" が見つかりません → 空欄のまま`);
@@ -254,6 +264,49 @@ function _updateMonthData(sheet, month) {
       Logger.log(`${member.name}: ERROR - ${e.message}`);
     }
   }
+}
+
+// ============================================================
+// シートID（gid）でタブを取得するヘルパー
+// タブ名が標準形式と異なる場合のフォールバックとして使用
+// ============================================================
+function _getSheetById(ss, sheetId) {
+  const sheets = ss.getSheets();
+  for (let i = 0; i < sheets.length; i++) {
+    if (sheets[i].getSheetId() === sheetId) return sheets[i];
+  }
+  return null;
+}
+
+// ============================================================
+// 手動実行用④: 既存シートのメンバー名・評価シートリンクを最新化
+// 新メンバー追加時や ssId 変更後に1回だけ実行してください
+// ============================================================
+function updateMemberLinks() {
+  const mainSS    = SpreadsheetApp.openById(MAIN_SPREADSHEET_ID);
+  const destSheet = mainSS.getSheetByName(ACHIEVEMENT_TAB_NAME);
+  if (!destSheet) { Logger.log('シートが見つかりません'); return; }
+
+  const lastRow    = destSheet.getLastRow();
+  const nameValues = destSheet.getRange(1, NAME_COL, lastRow, 1).getValues();
+  const nameToRow  = {};
+  for (let r = 0; r < nameValues.length; r++) {
+    const name = String(nameValues[r][0]).trim();
+    if (name) nameToRow[name] = r + 1;
+  }
+
+  for (let i = 0; i < MEMBERS.length; i++) {
+    const member = MEMBERS[i];
+    const row    = nameToRow[member.name];
+    if (!row) {
+      Logger.log(`${member.name}: A列に名前が見つかりません → スキップ`);
+      continue;
+    }
+    const ssUrl = `https://docs.google.com/spreadsheets/d/${member.ssId}/edit`;
+    destSheet.getRange(row, EVAL_COL).setFormula(`=HYPERLINK("${ssUrl}","評価シート")`);
+    Logger.log(`${member.name}: 行${row}に評価シートリンクを設定`);
+  }
+  Logger.log('メンバーリンクの更新が完了しました。');
 }
 
 // ============================================================
