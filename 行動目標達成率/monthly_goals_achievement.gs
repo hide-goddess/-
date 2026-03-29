@@ -34,6 +34,7 @@ var MEMBERS = [
   { name: '宇梶知恵',  ssId: '1vLIsuqdOoWrmH-EXdBkUL3XSkcYxl5sEW7NGillEviI' },
   { name: '増子真也子', ssId: '1sbHXZaFivRzliSZEX72rvLFN4EU7bR6ltXbB39lZHVc' },
   // tabIds: タブ名で見つからない場合にシートIDで取得するフォールバック用（月番号 → gid）
+  // krRangeByMonth: 月ごとにKey Resultの取得範囲が異なる場合の上書き指定（月番号 → セル範囲）
   { name: '川端歩実',  ssId: '1sLz2fvbPOA1mwwGAUOtn2zOO97XosnbI1jXqJ2n2vlc', tabIds: { 2: 1784140390 } },
   { name: '田中里奈',  ssId: '1LZisdyfMmShNsD0cgZtiLZe7uyUPfDDUrLv6U4h_ra0' },
   { name: '山下優花',  ssId: '15PtZ4__btQ2UxpBNPbGdfGd8dKpjenRAT6Mrn3bMVck' },
@@ -41,7 +42,7 @@ var MEMBERS = [
   { name: '佐藤大河',  ssId: '1PMGKmUaU2hze5N4Ar7eCcU_uJz-jQThdq_3eGWuI_kw' },
   { name: '青木博資',  ssId: '1PecGIyJDbHy2y1yXIia0Ada1HENe3qY6W-HSppiyUTc' },
   { name: '田畑秀晃',  ssId: '1a7K7N062cHMRTwX8lYpujRGH6b6z1s9bDf--v_DJZ7M' },
-  { name: '田中春奈',  ssId: '1vmMTNe38hVlvcbK2s21MU70Dwi1W7VYqppLsfKJ3z2Y', tabIds: { 2: 1784140390 } },
+  { name: '田中春奈',  ssId: '1vmMTNe38hVlvcbK2s21MU70Dwi1W7VYqppLsfKJ3z2Y', tabIds: { 2: 1784140390 }, krRangeByMonth: { 2: 'B21:B23' } },
 ];
 
 // ============================================================
@@ -232,13 +233,14 @@ function _updateMonthData(sheet, month) {
         continue;
       }
 
-      // A21:A23（Key Result）と E21:E23（達成率）を取得
-      // ※ Key ResultセルはA列とB列が結合セルのため、値は左端のA列に格納されている
-      const krValues      = srcSheet.getRange('A21:A23').getValues();
+      // Key Result取得範囲: メンバー・月ごとの上書き指定があればそちらを優先
+      // 通常は A21:A23（A-B結合セルのため値は左端A列）、krRangeByMonth 指定時はそちらを使用
+      const krRange       = (member.krRangeByMonth && member.krRangeByMonth[month]) ? member.krRangeByMonth[month] : 'A21:A23';
+      const krValues      = srcSheet.getRange(krRange).getValues();
       const achieveValues = srcSheet.getRange('E21:E23').getValues();
 
       // 読み取り値をログ出力（デバッグ用）
-      Logger.log(`${member.name} ${month}月 読取値 A21=${krValues[0][0]} A22=${krValues[1][0]} A23=${krValues[2][0]} / E21=${achieveValues[0][0]} E22=${achieveValues[1][0]} E23=${achieveValues[2][0]}`);
+      Logger.log(`${member.name} ${month}月 KR範囲=${krRange} 読取値 [0]=${krValues[0][0]} [1]=${krValues[1][0]} [2]=${krValues[2][0]} / E21=${achieveValues[0][0]} E22=${achieveValues[1][0]} E23=${achieveValues[2][0]}`);
 
       // 6セル分のデータを組み立て
       const rowData = [];
