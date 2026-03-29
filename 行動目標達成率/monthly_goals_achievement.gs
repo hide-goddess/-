@@ -42,7 +42,7 @@ var MEMBERS = [
   { name: '佐藤大河',  ssId: '1PMGKmUaU2hze5N4Ar7eCcU_uJz-jQThdq_3eGWuI_kw' },
   { name: '青木博資',  ssId: '1PecGIyJDbHy2y1yXIia0Ada1HENe3qY6W-HSppiyUTc' },
   { name: '田畑秀晃',  ssId: '1a7K7N062cHMRTwX8lYpujRGH6b6z1s9bDf--v_DJZ7M' },
-  { name: '田中春奈',  ssId: '1vmMTNe38hVlvcbK2s21MU70Dwi1W7VYqppLsfKJ3z2Y', tabIds: { 2: 1784140390 }, krRangeByMonth: { 2: 'B21:B23' } },
+  { name: '田中春奈',  ssId: '1vmMTNe38hVlvcbK2s21MU70Dwi1W7VYqppLsfKJ3z2Y', tabIds: { 2: 1784140390 } },
 ];
 
 // ============================================================
@@ -367,6 +367,36 @@ function debugCheckSource() {
   }
 
   Logger.log('デバッグ完了。上記ログでB21〜E23の値を確認してください。');
+}
+
+// ============================================================
+// デバッグ用⑤: 田中春奈の2月タブを詳細調査
+// 実行するとログに全タブ名・gid一覧と、各タブのA21:A23・E21:E23の値が出力される
+// → 正しい 定量評価シート_2月 タブのgidを特定するために使用してください
+// ============================================================
+function debugTanaka2月() {
+  var ssId = '1vmMTNe38hVlvcbK2s21MU70Dwi1W7VYqppLsfKJ3z2Y';
+  var ss    = SpreadsheetApp.openById(ssId);
+  var sheets = ss.getSheets();
+
+  Logger.log('=== 田中春奈 スプシ全タブ一覧 ===');
+  for (var i = 0; i < sheets.length; i++) {
+    var s = sheets[i];
+    Logger.log(`[${i}] 名前="${s.getName()}" gid=${s.getSheetId()}`);
+  }
+
+  Logger.log('=== 各タブのA21:A23 / E21:E23 ===');
+  for (var i = 0; i < sheets.length; i++) {
+    var s = sheets[i];
+    try {
+      var kr  = s.getRange('A21:A23').getValues();
+      var ach = s.getRange('E21:E23').getValues();
+      Logger.log(`[${s.getName()}] A21="${kr[0][0]}" A22="${kr[1][0]}" A23="${kr[2][0]}" / E21="${ach[0][0]}" E22="${ach[1][0]}" E23="${ach[2][0]}"`);
+    } catch(e) {
+      Logger.log(`[${s.getName()}] 読み取りエラー: ${e.message}`);
+    }
+  }
+  Logger.log('=== デバッグ完了: 正しいタブのgidをコード内 tabIds: { 2: xxxx } に設定してください ===');
 }
 
 // ============================================================
