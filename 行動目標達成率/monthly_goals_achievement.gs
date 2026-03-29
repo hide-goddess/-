@@ -400,6 +400,45 @@ function debugUkaji2月() {
 }
 
 // ============================================================
+// デバッグ用⑦: 宇梶知恵の2月タブの非空セルを詳細スキャン
+// A列〜F列、行15〜30を全スキャンして実際にデータがある場所を特定する
+// ============================================================
+function debugUkaji2月Detail() {
+  var ssId = '1vLIsuqdOoWrmH-EXdBkUL3XSkcYxl5sEW7NGillEviI';
+  var ss    = SpreadsheetApp.openById(ssId);
+
+  // 標準名でタブ検索
+  var sheet = ss.getSheetByName('定量評価シート_2月');
+  if (!sheet) {
+    Logger.log('定量評価シート_2月 タブが見つかりません。全タブ一覧:');
+    ss.getSheets().forEach(function(s) {
+      Logger.log(`  名前="${s.getName()}" gid=${s.getSheetId()}`);
+    });
+    return;
+  }
+
+  Logger.log(`=== 宇梶知恵 定量評価シート_2月 (gid=${sheet.getSheetId()}) 詳細スキャン ===`);
+
+  // 行15〜35、A〜G列をスキャンして非空セルを列挙
+  var data = sheet.getRange('A15:G35').getValues();
+  for (var r = 0; r < data.length; r++) {
+    var rowNum = 15 + r;
+    var rowHasData = false;
+    var rowStr = `行${rowNum}: `;
+    var cols = ['A','B','C','D','E','F','G'];
+    for (var c = 0; c < data[r].length; c++) {
+      var val = data[r][c];
+      if (val !== null && val !== '' && val !== undefined) {
+        rowStr += `${cols[c]}="${val}" `;
+        rowHasData = true;
+      }
+    }
+    if (rowHasData) Logger.log(rowStr);
+  }
+  Logger.log('=== スキャン完了 ===');
+}
+
+// ============================================================
 // デバッグ用⑤: 田中春奈の2月タブを詳細調査
 // 実行するとログに全タブ名・gid一覧と、各タブのA21:A23・E21:E23の値が出力される
 // → 正しい 定量評価シート_2月 タブのgidを特定するために使用してください
