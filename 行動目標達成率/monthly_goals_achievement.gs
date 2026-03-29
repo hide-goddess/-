@@ -370,6 +370,36 @@ function debugCheckSource() {
 }
 
 // ============================================================
+// デバッグ用⑥: 宇梶知恵の2月タブを詳細調査
+// 実行するとログに全タブ名・gid一覧と、各タブのA21:A23・E21:E23の値が出力される
+// → 正しい 定量評価シート_2月 タブのgidを特定するために使用してください
+// ============================================================
+function debugUkaji2月() {
+  var ssId = '1vLIsuqdOoWrmH-EXdBkUL3XSkcYxl5sEW7NGillEviI';
+  var ss    = SpreadsheetApp.openById(ssId);
+  var sheets = ss.getSheets();
+
+  Logger.log('=== 宇梶知恵 スプシ全タブ一覧 ===');
+  for (var i = 0; i < sheets.length; i++) {
+    var s = sheets[i];
+    Logger.log(`[${i}] 名前="${s.getName()}" gid=${s.getSheetId()}`);
+  }
+
+  Logger.log('=== 各タブのA21:A23 / E21:E23 ===');
+  for (var i = 0; i < sheets.length; i++) {
+    var s = sheets[i];
+    try {
+      var kr  = s.getRange('A21:A23').getValues();
+      var ach = s.getRange('E21:E23').getValues();
+      Logger.log(`[${s.getName()}] A21="${kr[0][0]}" A22="${kr[1][0]}" A23="${kr[2][0]}" / E21="${ach[0][0]}" E22="${ach[1][0]}" E23="${ach[2][0]}"`);
+    } catch(e) {
+      Logger.log(`[${s.getName()}] 読み取りエラー: ${e.message}`);
+    }
+  }
+  Logger.log('=== デバッグ完了: 正しいタブのgidをコード内 tabIds: { 2: xxxx } に設定してください ===');
+}
+
+// ============================================================
 // デバッグ用⑤: 田中春奈の2月タブを詳細調査
 // 実行するとログに全タブ名・gid一覧と、各タブのA21:A23・E21:E23の値が出力される
 // → 正しい 定量評価シート_2月 タブのgidを特定するために使用してください
