@@ -404,32 +404,41 @@ function debugUkaji2月() {
 // ユーザー指定URLのタブ（gid=482499501）の全セルを確認する
 // ============================================================
 function debugUkaji2月Detail() {
-  var ssId   = '1vLIsuqdOoWrmH-EXdBkUL3XSkcYxl5sEW7NGillEviI';
+  var ssId      = '1vLIsuqdOoWrmH-EXdBkUL3XSkcYxl5sEW7NGillEviI';
   var targetGid = 482499501;
-  var ss     = SpreadsheetApp.openById(ssId);
-  var sheet  = _getSheetById(ss, targetGid);
+  var ss        = SpreadsheetApp.openById(ssId);
+
+  // gid=482499501 のタブをインラインで検索（_getSheetById非依存）
+  var sheets = ss.getSheets();
+  var sheet = null;
+  for (var i = 0; i < sheets.length; i++) {
+    if (sheets[i].getSheetId() === targetGid) {
+      sheet = sheets[i];
+      break;
+    }
+  }
 
   if (!sheet) {
-    Logger.log(`gid=${targetGid} のタブが見つかりません。全タブ一覧:`);
-    ss.getSheets().forEach(function(s) {
-      Logger.log(`  名前="${s.getName()}" gid=${s.getSheetId()}`);
-    });
+    Logger.log('gid=482499501 のタブが見つかりません。全タブ一覧:');
+    for (var i = 0; i < sheets.length; i++) {
+      Logger.log('  名前="' + sheets[i].getName() + '" gid=' + sheets[i].getSheetId());
+    }
     return;
   }
 
-  Logger.log(`=== 宇梶知恵 gid=${targetGid} タブ名="${sheet.getName()}" 広範囲スキャン ===`);
+  Logger.log('=== 宇梶知恵 gid=482499501 タブ名="' + sheet.getName() + '" 広範囲スキャン ===');
 
-  // 行1〜40、A〜G列をスキャンして非空セルを全列挙
-  var data = sheet.getRange('A1:G40').getValues();
+  // 行1〜50、A〜G列をスキャンして非空セルを全列挙
+  var data = sheet.getRange('A1:G50').getValues();
   var cols = ['A','B','C','D','E','F','G'];
   for (var r = 0; r < data.length; r++) {
     var rowNum = 1 + r;
     var rowHasData = false;
-    var rowStr = `行${rowNum}: `;
+    var rowStr = '行' + rowNum + ': ';
     for (var c = 0; c < data[r].length; c++) {
       var val = data[r][c];
       if (val !== null && val !== '' && val !== undefined) {
-        rowStr += `${cols[c]}="${val}" `;
+        rowStr += cols[c] + '="' + val + '" ';
         rowHasData = true;
       }
     }
