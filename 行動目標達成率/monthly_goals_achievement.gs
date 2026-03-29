@@ -400,32 +400,32 @@ function debugUkaji2月() {
 }
 
 // ============================================================
-// デバッグ用⑦: 宇梶知恵の2月タブの非空セルを詳細スキャン
-// A列〜F列、行15〜30を全スキャンして実際にデータがある場所を特定する
+// デバッグ用⑦: 宇梶知恵の2月タブ(gid=482499501)を広範囲スキャン
+// ユーザー指定URLのタブ（gid=482499501）の全セルを確認する
 // ============================================================
 function debugUkaji2月Detail() {
-  var ssId = '1vLIsuqdOoWrmH-EXdBkUL3XSkcYxl5sEW7NGillEviI';
-  var ss    = SpreadsheetApp.openById(ssId);
+  var ssId   = '1vLIsuqdOoWrmH-EXdBkUL3XSkcYxl5sEW7NGillEviI';
+  var targetGid = 482499501;
+  var ss     = SpreadsheetApp.openById(ssId);
+  var sheet  = _getSheetById(ss, targetGid);
 
-  // 標準名でタブ検索
-  var sheet = ss.getSheetByName('定量評価シート_2月');
   if (!sheet) {
-    Logger.log('定量評価シート_2月 タブが見つかりません。全タブ一覧:');
+    Logger.log(`gid=${targetGid} のタブが見つかりません。全タブ一覧:`);
     ss.getSheets().forEach(function(s) {
       Logger.log(`  名前="${s.getName()}" gid=${s.getSheetId()}`);
     });
     return;
   }
 
-  Logger.log(`=== 宇梶知恵 定量評価シート_2月 (gid=${sheet.getSheetId()}) 詳細スキャン ===`);
+  Logger.log(`=== 宇梶知恵 gid=${targetGid} タブ名="${sheet.getName()}" 広範囲スキャン ===`);
 
-  // 行15〜35、A〜G列をスキャンして非空セルを列挙
-  var data = sheet.getRange('A15:G35').getValues();
+  // 行1〜40、A〜G列をスキャンして非空セルを全列挙
+  var data = sheet.getRange('A1:G40').getValues();
+  var cols = ['A','B','C','D','E','F','G'];
   for (var r = 0; r < data.length; r++) {
-    var rowNum = 15 + r;
+    var rowNum = 1 + r;
     var rowHasData = false;
     var rowStr = `行${rowNum}: `;
-    var cols = ['A','B','C','D','E','F','G'];
     for (var c = 0; c < data[r].length; c++) {
       var val = data[r][c];
       if (val !== null && val !== '' && val !== undefined) {
