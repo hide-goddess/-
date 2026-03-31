@@ -48,13 +48,16 @@ var STAFF_LIST = [
   // contentColIdx: 業務内容列の先頭インデックス（0始まり）
   //   C列=2 (C〜I が結合: yukinoさん/菜々子さん/ともえさん/りおさん/優花さん/みおなさん)
   //   E列=4 (E〜K が結合: はるかさん)
-  { displayName: 'あゆみ',     reportId: '17YS1m15AZDCBsFKwRq0LEBGsf7jY4exCTJXyhZfDW9E', contentColIdx: 2 },
-  { displayName: 'ななこ',     reportId: '1joyW47gyikwF1tRTRfgiy-ldcsNKef73Ne4JAE1Lvhs',  contentColIdx: 2 },
-  { displayName: 'ともえ',     reportId: '1rKUxHw1Rwkc9BQsT9nY_15khBa2bRinJjZpDInOi7-A', contentColIdx: 2 },
-  { displayName: 'はるかさん', reportId: '1ZRulEZaZqUxvhYIliYskskGo2_KDw2dWizN04WgOi1w', contentColIdx: 4 }, // E〜K列
-  { displayName: 'りお',       reportId: '1OLvkp5LXrCEiwnSNVfDK-mWPZ4Dka1l-l25EFRoAQgg', contentColIdx: 2 },
-  { displayName: 'ゆうか',     reportId: '1MaaS2V8L0KU48-0pPql9_0Sl5nE9aj6Rm6d5ONbTvFk', contentColIdx: 2 },
-  { displayName: 'みおなさん', reportId: '1mPtv-l2u3JKBpKcRG0JZc5bSqw2e630vkfI-Je04Y6k', contentColIdx: 2 },
+  // categoryColIdx: カテゴリ列のインデックス（0始まり）
+  //   B列=1 (その他全員)
+  //   D列=3 (はるかさん)
+  { displayName: 'あゆみ',     reportId: '17YS1m15AZDCBsFKwRq0LEBGsf7jY4exCTJXyhZfDW9E', contentColIdx: 2, categoryColIdx: 1 },
+  { displayName: 'ななこ',     reportId: '1joyW47gyikwF1tRTRfgiy-ldcsNKef73Ne4JAE1Lvhs',  contentColIdx: 2, categoryColIdx: 1 },
+  { displayName: 'ともえ',     reportId: '1rKUxHw1Rwkc9BQsT9nY_15khBa2bRinJjZpDInOi7-A', contentColIdx: 2, categoryColIdx: 1 },
+  { displayName: 'はるかさん', reportId: '1ZRulEZaZqUxvhYIliYskskGo2_KDw2dWizN04WgOi1w', contentColIdx: 4, categoryColIdx: 3 }, // E〜K列 / D列カテゴリ
+  { displayName: 'りお',       reportId: '1OLvkp5LXrCEiwnSNVfDK-mWPZ4Dka1l-l25EFRoAQgg', contentColIdx: 2, categoryColIdx: 1 },
+  { displayName: 'ゆうか',     reportId: '1MaaS2V8L0KU48-0pPql9_0Sl5nE9aj6Rm6d5ONbTvFk', contentColIdx: 2, categoryColIdx: 1 },
+  { displayName: 'みおなさん', reportId: '1mPtv-l2u3JKBpKcRG0JZc5bSqw2e630vkfI-Je04Y6k', contentColIdx: 2, categoryColIdx: 1 },
 ];
 
 // 担当者列の最大スロット数（STAFF_LIST の人数に合わせる）
@@ -197,7 +200,7 @@ function processDate(date) {
 
   for (var i = 0; i < STAFF_LIST.length; i++) {
     var staff  = STAFF_LIST[i];
-    var result = getDataFromReport(staff.reportId, year, month, day, staff.contentColIdx);
+    var result = getDataFromReport(staff.reportId, year, month, day, staff.contentColIdx, staff.categoryColIdx);
     if (result.count > 0) {
       respondents.push(staff.displayName);
       totalCount += result.count;
@@ -222,7 +225,7 @@ function processDate(date) {
 //   返値: { count: 件数, time: 対応時間(分) }
 // ================================================================
 
-function getDataFromReport(reportId, year, month, day, contentColIdx) {
+function getDataFromReport(reportId, year, month, day, contentColIdx, categoryColIdx) {
   try {
     var ss            = SpreadsheetApp.openById(reportId);
     var tabCandidates = generateTabNameCandidates(year, month, day);
@@ -243,7 +246,7 @@ function getDataFromReport(reportId, year, month, day, contentColIdx) {
 
     return {
       count: extractCountFromSheet(sheet, contentColIdx),
-      time:  extractTimeFromSheet(sheet, contentColIdx),
+      time:  extractTimeFromSheet(sheet, contentColIdx, categoryColIdx),
     };
 
   } catch (e) {
@@ -329,24 +332,18 @@ function sumContentCols(row, colStart) {
   return sum;
 }
 
-// ================================================================
-// 日報シートから対応時間（分）を抽出
-//   スケジュール行（A列が時刻）かつB列にカテゴリタグがある行数 × 30分
-//   クラス分け行は除外
-// ================================================================
-
-// 対応時間: B列にカテゴリがあり、かつ業務内容列(contentColIdx)に値がある行数 × 30分
-function extractTimeFromSheet(sheet, contentColIdx) {
-  var all  = sheet.getDataRange().getValues();
-  var data = all.slice(REPORT_SKIP_ROW);
+// 対応時間: カテゴリ列に値があり、かつ業務内容列に値がある行数 × 30分
+//   その他全員: categoryColIdx=1 (B列)
+//   はるかさん: categoryColIdx=3 (D列)
+function extractTimeFromSheet(sheet, contentColIdx, categoryColIdx) {
+  var data = sheet.getDataRange().getValues().slice(REPORT_SKIP_ROW);
   var cnt  = 0;
 
   for (var i = 0; i < data.length; i++) {
-    if (!isScheduleRow(data[i])) continue;
-    if (isClassBunkRow(data[i])) continue;
-    var b       = String(data[i][1]             || '').trim(); // B列: カテゴリ
-    var content = String(data[i][contentColIdx] || '').trim(); // 業務内容列
-    if (b !== '' && content !== '') cnt++;
+    if (!isScheduleRow(data[i]) || isClassBunkRow(data[i])) continue;
+    var category = String(data[i][categoryColIdx] || '').trim();
+    var content  = String(data[i][contentColIdx]  || '').trim();
+    if (category !== '' && content !== '') cnt++;
   }
 
   var minutes = cnt * 30;
