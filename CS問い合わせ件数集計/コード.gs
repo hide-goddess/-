@@ -45,13 +45,16 @@ var SS_ID = {
 // ================================================================
 
 var STAFF_LIST = [
-  { displayName: 'あゆみ',     reportId: '17YS1m15AZDCBsFKwRq0LEBGsf7jY4exCTJXyhZfDW9E' }, // yukinoさん_日報
-  { displayName: 'ななこ',     reportId: '1joyW47gyikwF1tRTRfgiy-ldcsNKef73Ne4JAE1Lvhs' }, // 菜々子さん_日報
-  { displayName: 'ともえ',     reportId: '1rKUxHw1Rwkc9BQsT9nY_15khBa2bRinJjZpDInOi7-A' }, // ともえさん_日報
-  { displayName: 'はるかさん', reportId: '1ZRulEZaZqUxvhYIliYskskGo2_KDw2dWizN04WgOi1w' }, // はるか_日報new
-  { displayName: 'りお',       reportId: '1OLvkp5LXrCEiwnSNVfDK-mWPZ4Dka1l-l25EFRoAQgg' }, // りおさん_日報
-  { displayName: 'ゆうか',     reportId: '1MaaS2V8L0KU48-0pPql9_0Sl5nE9aj6Rm6d5ONbTvFk' }, // 優花さん_日報
-  { displayName: 'みおなさん', reportId: '1mPtv-l2u3JKBpKcRG0JZc5bSqw2e630vkfI-Je04Y6k' }, // みおなさん_日報
+  // contentColIdx: 業務内容列の先頭インデックス（0始まり）
+  //   C列=2 (C〜I が結合: yukinoさん/菜々子さん/ともえさん/りおさん/優花さん/みおなさん)
+  //   E列=4 (E〜K が結合: はるかさん)
+  { displayName: 'あゆみ',     reportId: '17YS1m15AZDCBsFKwRq0LEBGsf7jY4exCTJXyhZfDW9E', contentColIdx: 2 },
+  { displayName: 'ななこ',     reportId: '1joyW47gyikwF1tRTRfgiy-ldcsNKef73Ne4JAE1Lvhs',  contentColIdx: 2 },
+  { displayName: 'ともえ',     reportId: '1rKUxHw1Rwkc9BQsT9nY_15khBa2bRinJjZpDInOi7-A', contentColIdx: 2 },
+  { displayName: 'はるかさん', reportId: '1ZRulEZaZqUxvhYIliYskskGo2_KDw2dWizN04WgOi1w', contentColIdx: 4 }, // E〜K列
+  { displayName: 'りお',       reportId: '1OLvkp5LXrCEiwnSNVfDK-mWPZ4Dka1l-l25EFRoAQgg', contentColIdx: 2 },
+  { displayName: 'ゆうか',     reportId: '1MaaS2V8L0KU48-0pPql9_0Sl5nE9aj6Rm6d5ONbTvFk', contentColIdx: 2 },
+  { displayName: 'みおなさん', reportId: '1mPtv-l2u3JKBpKcRG0JZc5bSqw2e630vkfI-Je04Y6k', contentColIdx: 2 },
 ];
 
 // 担当者列の最大スロット数（STAFF_LIST の人数に合わせる）
@@ -194,7 +197,7 @@ function processDate(date) {
 
   for (var i = 0; i < STAFF_LIST.length; i++) {
     var staff  = STAFF_LIST[i];
-    var result = getDataFromReport(staff.reportId, year, month, day);
+    var result = getDataFromReport(staff.reportId, year, month, day, staff.contentColIdx);
     if (result.count > 0) {
       respondents.push(staff.displayName);
       totalCount += result.count;
@@ -219,7 +222,7 @@ function processDate(date) {
 //   返値: { count: 件数, time: 対応時間(分) }
 // ================================================================
 
-function getDataFromReport(reportId, year, month, day) {
+function getDataFromReport(reportId, year, month, day, contentColIdx) {
   try {
     var ss            = SpreadsheetApp.openById(reportId);
     var tabCandidates = generateTabNameCandidates(year, month, day);
@@ -239,8 +242,8 @@ function getDataFromReport(reportId, year, month, day) {
     }
 
     return {
-      count: extractCountFromSheet(sheet),
-      time:  extractTimeFromSheet(sheet),
+      count: extractCountFromSheet(sheet, contentColIdx),
+      time:  extractTimeFromSheet(sheet, contentColIdx),
     };
 
   } catch (e) {
@@ -283,11 +286,11 @@ function generateTabNameCandidates(year, month, day) {
 //   戦略1: 「〇件」パターン / 戦略2: C〜I列の数値合計（フォールバック）
 // ================================================================
 
-function extractCountFromSheet(sheet) {
+function extractCountFromSheet(sheet, contentColIdx) {
   var all  = sheet.getDataRange().getValues();
   var data = all.slice(REPORT_SKIP_ROW);
 
-  // 戦略1: 「〇件」パターン
+  // 戦略1: 「〇件」パターン（全列を検索）
   var kenTotal = 0;
   for (var i = 0; i < data.length; i++) {
     if (!isScheduleRow(data[i])) continue;
@@ -301,24 +304,25 @@ function extractCountFromSheet(sheet) {
     return kenTotal;
   }
 
-  // 戦略2: C〜I列の数値合計（フォールバック）
+  // 戦略2: 業務内容列（contentColIdx〜+6）の数値合計（フォールバック）
   var grandTotal = 0;
   for (var i = 0; i < data.length; i++) {
     if (!isScheduleRow(data[i])) continue;
     if (isClassBunkRow(data[i])) continue;
-    grandTotal += sumColumnsCI(data[i]);
+    grandTotal += sumContentCols(data[i], contentColIdx);
   }
   if (grandTotal > 0) {
-    Logger.log('    → C〜I列合計から取得: ' + grandTotal);
+    Logger.log('    → 業務内容列合計から取得: ' + grandTotal);
   }
   return grandTotal;
 }
 
-// C列（インデックス2）〜I列（インデックス8）の正数を合計
-function sumColumnsCI(row) {
+// 業務内容列（colStart〜colStart+6）の正数を合計
+// 他のスタッフ: C〜I (colStart=2), はるかさん: E〜K (colStart=4)
+function sumContentCols(row, colStart) {
   var sum = 0;
-  var end = Math.min(row.length - 1, 8);
-  for (var c = 2; c <= end; c++) {
+  var end = Math.min(row.length - 1, colStart + 6);
+  for (var c = colStart; c <= end; c++) {
     var v = row[c];
     if (typeof v === 'number' && !isNaN(v) && v > 0) sum += v;
   }
@@ -331,7 +335,8 @@ function sumColumnsCI(row) {
 //   クラス分け行は除外
 // ================================================================
 
-function extractTimeFromSheet(sheet) {
+// 対応時間: B列にカテゴリがあり、かつ業務内容列(contentColIdx)に値がある行数 × 30分
+function extractTimeFromSheet(sheet, contentColIdx) {
   var all  = sheet.getDataRange().getValues();
   var data = all.slice(REPORT_SKIP_ROW);
   var cnt  = 0;
@@ -339,8 +344,9 @@ function extractTimeFromSheet(sheet) {
   for (var i = 0; i < data.length; i++) {
     if (!isScheduleRow(data[i])) continue;
     if (isClassBunkRow(data[i])) continue;
-    var b = String(data[i][1] || '').trim();
-    if (b !== '') cnt++;
+    var b       = String(data[i][1]             || '').trim(); // B列: カテゴリ
+    var content = String(data[i][contentColIdx] || '').trim(); // 業務内容列
+    if (b !== '' && content !== '') cnt++;
   }
 
   var minutes = cnt * 30;
