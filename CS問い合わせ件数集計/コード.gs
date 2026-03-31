@@ -526,25 +526,34 @@ function processToday() {
 // 3/13 以降のデータを一括処理（初回実行用）
 // ================================================================
 
-function processMarchFromStart() {
-  Logger.log('=== 3月13日から本日までの一括処理開始 ===');
+// 前半: 3/13 〜 3/21（まずこちらを実行）
+function processMarchPart1() {
+  Logger.log('=== 3月前半（3/13〜3/21）一括処理開始 ===');
+  processBatchRange(new Date(2026, 2, 13), new Date(2026, 2, 21));
+  Logger.log('=== 3月前半 完了 ===');
+}
 
-  var start   = new Date(2026, 2, 13); // 2026/3/13
-  var today   = new Date();
+// 後半: 3/22 〜 本日（前半完了後に実行）
+function processMarchPart2() {
+  Logger.log('=== 3月後半（3/22〜本日）一括処理開始 ===');
+  var today = new Date();
   today.setHours(0, 0, 0, 0);
+  processBatchRange(new Date(2026, 2, 22), today);
+  Logger.log('=== 3月後半 完了 ===');
+}
 
+// 共通: 指定期間をループ処理
+function processBatchRange(start, end) {
   var current = new Date(start);
   var cnt     = 0;
-
-  while (current <= today) {
+  while (current <= end) {
     Logger.log('処理: ' + Utilities.formatDate(current, 'Asia/Tokyo', 'yyyy/MM/dd'));
     processDate(new Date(current));
     current.setDate(current.getDate() + 1);
     cnt++;
-    if (cnt % 20 === 0) Utilities.sleep(2000);
+    if (cnt % 10 === 0) Utilities.sleep(3000); // 10日ごとに3秒待機
   }
-
-  Logger.log('=== 一括処理完了: ' + cnt + '日分 ===');
+  Logger.log('処理済: ' + cnt + '日分');
 }
 
 // ================================================================
