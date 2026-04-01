@@ -564,6 +564,96 @@ function processToday() {
 }
 
 // ================================================================
+// デバッグ: 3/31 の各スタッフ日報の行データを詳細ログ出力
+//   GASエディタで実行 → 「ログ」で確認してください
+// ================================================================
+
+function debugMarch31() {
+  var year = 2026, month = 3, day = 31;
+
+  for (var s = 0; s < STAFF_LIST.length; s++) {
+    var staff = STAFF_LIST[s];
+    Logger.log('');
+    Logger.log('========== ' + staff.displayName + ' ==========');
+    Logger.log('  contentColIdx=' + staff.contentColIdx + '  categoryColIdx=' + staff.categoryColIdx);
+
+    try {
+      var ss = SpreadsheetApp.openById(staff.reportId);
+      var tabCandidates = generateTabNameCandidates(year, month, day);
+      var sheet = null;
+      for (var i = 0; i < tabCandidates.length; i++) {
+        sheet = ss.getSheetByName(tabCandidates[i]);
+        if (sheet) { Logger.log('  タブ発見: "' + tabCandidates[i] + '"'); break; }
+      }
+      if (!sheet) {
+        Logger.log('  !! タブが見つかりません (候補: ' + tabCandidates.slice(0, 6).join(', ') + ')');
+        continue;
+      }
+
+      var allData = sheet.getDataRange().getValues();
+      Logger.log('  総行数: ' + allData.length + '  スキップ後データ行数: ' + (allData.length - REPORT_SKIP_ROW));
+
+      // 先頭6行（スキップ行）の内容も確認
+      Logger.log('  --- スキップ行 (先頭 ' + REPORT_SKIP_ROW + ' 行) ---');
+      for (var r = 0; r < Math.min(REPORT_SKIP_ROW, allData.length); r++) {
+        Logger.log('  行' + (r+1) + ': ' + allData[r].slice(0, 6).map(function(v){ return '"' + String(v).slice(0,20) + '"'; }).join(' | '));
+      }
+
+      var data = allData.slice(REPORT_SKIP_ROW);
+      Logger.log('  --- スケジュール行の詳細 ---');
+      var scheduleCount = 0;
+      for (var i = 0; i < data.length; i++) {
+        if (!isScheduleRow(data[i])) continue;
+        scheduleCount++;
+
+        var category   = String(data[i][staff.categoryColIdx] || '').trim();
+        var content    = String(data[i][staff.contentColIdx]  || '').trim();
+        var classBunk  = isClassBunkRow(data[i], staff.categoryColIdx);
+        var kenCount   = extractKenCount(content);
+        var colC_val   = data[i][2]; // C列（index 2）の値（はるかさん用）
+
+        // csCategoryFilter に一致するか
+        var filterMatch = '(フィルタなし)';
+        if (staff.csCategoryFilter && staff.csCategoryFilter.length > 0) {
+          var m = false;
+          for (var f = 0; f < staff.csCategoryFilter.length; f++) {
+            if (category.indexOf(staff.csCategoryFilter[f]) !== -1) { m = true; break; }
+          }
+          filterMatch = m ? '★フィルタ一致' : '×フィルタ不一致';
+        }
+
+        Logger.log('  行' + (i + REPORT_SKIP_ROW + 1) +
+          ' A="' + String(data[i][0]).slice(0,8) + '"' +
+          ' B="' + String(data[i][1]).slice(0,12) + '"' +
+          ' C="' + String(data[i][2]).slice(0,12) + '"' +
+          ' D="' + String(data[i][3]).slice(0,12) + '"' +
+          ' E="' + String(data[i][4]).slice(0,12) + '"' +
+          ' | カテゴリ[' + staff.categoryColIdx + ']="' + category + '"' +
+          ' | 業務内容[' + staff.contentColIdx + ']="' + content.slice(0,20) + '"' +
+          ' | クラス分け=' + classBunk +
+          ' | 件数=' + kenCount +
+          ' | C列値=' + colC_val +
+          ' | ' + filterMatch
+        );
+      }
+      Logger.log('  スケジュール行合計: ' + scheduleCount);
+
+      // 最終的な集計結果
+      var result = getDataFromReport(staff.reportId, year, month, day,
+                                     staff.contentColIdx, staff.categoryColIdx,
+                                     staff.useColCTime, staff.csCategoryFilter);
+      Logger.log('  >>> 結果: 件数=' + result.count + '件 / 時間=' + result.time + '分');
+
+    } catch(e) {
+      Logger.log('  !! エラー: ' + e.message);
+    }
+  }
+
+  Logger.log('');
+  Logger.log('=== debugMarch31 完了 ===');
+}
+
+// ================================================================
 // 3/13 以降のデータを一括処理（初回実行用）
 // ================================================================
 
