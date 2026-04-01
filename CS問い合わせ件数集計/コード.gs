@@ -334,31 +334,35 @@ function sumContentCols(row, colStart) {
 }
 
 // 対応時間の抽出
-//   その他全員 (useColCTime=false):
-//     カテゴリ列に値 かつ 業務内容列に値がある行数 × 30分
-//   はるかさん (useColCTime=true):
-//     カテゴリ列に値 かつ 業務内容列に値がある行の C列(index 2) の時間値を合計
+//   対象行: カテゴリ列に値があり、かつ業務内容列に〇件パターンがある行のみ
+//
+//   その他全員 (useColCTime=false): 対象行数 × 30分
+//   はるかさん  (useColCTime=true):  対象行の C列値（h単位）× 60 を合計
 function extractTimeFromSheet(sheet, contentColIdx, categoryColIdx, useColCTime) {
-  var data    = sheet.getDataRange().getValues().slice(REPORT_SKIP_ROW);
-  var total   = 0;
+  var data  = sheet.getDataRange().getValues().slice(REPORT_SKIP_ROW);
+  var total = 0;
 
   for (var i = 0; i < data.length; i++) {
     if (!isScheduleRow(data[i]) || isClassBunkRow(data[i])) continue;
+
     var category = String(data[i][categoryColIdx] || '').trim();
     var content  = String(data[i][contentColIdx]  || '').trim();
-    if (category === '' || content === '') continue;
+
+    // カテゴリが空、または業務内容に「〇件」パターンがない行はスキップ
+    if (category === '') continue;
+    if (extractKenCount(content) === 0) continue;
 
     if (useColCTime) {
-      // はるかさん: C列(index 2)に記載の時間値を加算
-      //   数値(分)の場合はそのまま、時刻型(0:30 等)の場合は分に換算
+      // はるかさん: C列(index 2) の値を時間(h)として分に換算して加算
+      //   表示例 0.50 → 0.5h → 30分、2.50 → 2.5h → 150分
       var colC = data[i][2];
-      if (colC instanceof Date) {
+      if (typeof colC === 'number' && colC > 0) {
+        total += Math.round(colC * 60); // h → 分
+      } else if (colC instanceof Date) {
         total += colC.getHours() * 60 + colC.getMinutes();
-      } else if (typeof colC === 'number' && colC > 0) {
-        // スプレッドシートが時刻を小数(0.020833...=30分)で持つ場合
-        total += colC < 1 ? Math.round(colC * 24 * 60) : colC;
       }
     } else {
+      // その他全員: 1行 = 30分
       total += 30;
     }
   }
