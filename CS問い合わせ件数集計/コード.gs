@@ -45,19 +45,20 @@ var SS_ID = {
 // ================================================================
 
 var STAFF_LIST = [
-  // contentColIdx: 業務内容列の先頭インデックス（0始まり）
+  // contentColIdx:  業務内容列の先頭インデックス（0始まり）
   //   C列=2 (C〜I が結合: yukinoさん/菜々子さん/ともえさん/りおさん/優花さん/みおなさん)
   //   E列=4 (E〜K が結合: はるかさん)
   // categoryColIdx: カテゴリ列のインデックス（0始まり）
   //   B列=1 (その他全員)
   //   D列=3 (はるかさん)
-  { displayName: 'あゆみ',     reportId: '17YS1m15AZDCBsFKwRq0LEBGsf7jY4exCTJXyhZfDW9E', contentColIdx: 2, categoryColIdx: 1 },
-  { displayName: 'ななこ',     reportId: '1joyW47gyikwF1tRTRfgiy-ldcsNKef73Ne4JAE1Lvhs',  contentColIdx: 2, categoryColIdx: 1 },
-  { displayName: 'ともえ',     reportId: '1rKUxHw1Rwkc9BQsT9nY_15khBa2bRinJjZpDInOi7-A', contentColIdx: 2, categoryColIdx: 1 },
-  { displayName: 'はるかさん', reportId: '1ZRulEZaZqUxvhYIliYskskGo2_KDw2dWizN04WgOi1w', contentColIdx: 4, categoryColIdx: 3 }, // E〜K列 / D列カテゴリ
-  { displayName: 'りお',       reportId: '1OLvkp5LXrCEiwnSNVfDK-mWPZ4Dka1l-l25EFRoAQgg', contentColIdx: 2, categoryColIdx: 1 },
-  { displayName: 'ゆうか',     reportId: '1MaaS2V8L0KU48-0pPql9_0Sl5nE9aj6Rm6d5ONbTvFk', contentColIdx: 2, categoryColIdx: 1 },
-  { displayName: 'みおなさん', reportId: '1mPtv-l2u3JKBpKcRG0JZc5bSqw2e630vkfI-Je04Y6k', contentColIdx: 2, categoryColIdx: 1 },
+  // useColCTime: true のとき、対応時間はC列(index 2)の値を合計する（はるかさんのみ）
+  { displayName: 'あゆみ',     reportId: '17YS1m15AZDCBsFKwRq0LEBGsf7jY4exCTJXyhZfDW9E', contentColIdx: 2, categoryColIdx: 1, useColCTime: false },
+  { displayName: 'ななこ',     reportId: '1joyW47gyikwF1tRTRfgiy-ldcsNKef73Ne4JAE1Lvhs',  contentColIdx: 2, categoryColIdx: 1, useColCTime: false },
+  { displayName: 'ともえ',     reportId: '1rKUxHw1Rwkc9BQsT9nY_15khBa2bRinJjZpDInOi7-A', contentColIdx: 2, categoryColIdx: 1, useColCTime: false },
+  { displayName: 'はるかさん', reportId: '1ZRulEZaZqUxvhYIliYskskGo2_KDw2dWizN04WgOi1w', contentColIdx: 4, categoryColIdx: 3, useColCTime: true  }, // E〜K列 / D列カテゴリ / C列時間合計
+  { displayName: 'りお',       reportId: '1OLvkp5LXrCEiwnSNVfDK-mWPZ4Dka1l-l25EFRoAQgg', contentColIdx: 2, categoryColIdx: 1, useColCTime: false },
+  { displayName: 'ゆうか',     reportId: '1MaaS2V8L0KU48-0pPql9_0Sl5nE9aj6Rm6d5ONbTvFk', contentColIdx: 2, categoryColIdx: 1, useColCTime: false },
+  { displayName: 'みおなさん', reportId: '1mPtv-l2u3JKBpKcRG0JZc5bSqw2e630vkfI-Je04Y6k', contentColIdx: 2, categoryColIdx: 1, useColCTime: false },
 ];
 
 // 担当者列の最大スロット数（STAFF_LIST の人数に合わせる）
@@ -200,7 +201,7 @@ function processDate(date) {
 
   for (var i = 0; i < STAFF_LIST.length; i++) {
     var staff  = STAFF_LIST[i];
-    var result = getDataFromReport(staff.reportId, year, month, day, staff.contentColIdx, staff.categoryColIdx);
+    var result = getDataFromReport(staff.reportId, year, month, day, staff.contentColIdx, staff.categoryColIdx, staff.useColCTime);
     if (result.count > 0) {
       respondents.push(staff.displayName);
       totalCount += result.count;
@@ -225,7 +226,7 @@ function processDate(date) {
 //   返値: { count: 件数, time: 対応時間(分) }
 // ================================================================
 
-function getDataFromReport(reportId, year, month, day, contentColIdx, categoryColIdx) {
+function getDataFromReport(reportId, year, month, day, contentColIdx, categoryColIdx, useColCTime) {
   try {
     var ss            = SpreadsheetApp.openById(reportId);
     var tabCandidates = generateTabNameCandidates(year, month, day);
@@ -246,7 +247,7 @@ function getDataFromReport(reportId, year, month, day, contentColIdx, categoryCo
 
     return {
       count: extractCountFromSheet(sheet, contentColIdx),
-      time:  extractTimeFromSheet(sheet, contentColIdx, categoryColIdx),
+      time:  extractTimeFromSheet(sheet, contentColIdx, categoryColIdx, useColCTime),
     };
 
   } catch (e) {
@@ -332,23 +333,38 @@ function sumContentCols(row, colStart) {
   return sum;
 }
 
-// 対応時間: カテゴリ列に値があり、かつ業務内容列に値がある行数 × 30分
-//   その他全員: categoryColIdx=1 (B列)
-//   はるかさん: categoryColIdx=3 (D列)
-function extractTimeFromSheet(sheet, contentColIdx, categoryColIdx) {
-  var data = sheet.getDataRange().getValues().slice(REPORT_SKIP_ROW);
-  var cnt  = 0;
+// 対応時間の抽出
+//   その他全員 (useColCTime=false):
+//     カテゴリ列に値 かつ 業務内容列に値がある行数 × 30分
+//   はるかさん (useColCTime=true):
+//     カテゴリ列に値 かつ 業務内容列に値がある行の C列(index 2) の時間値を合計
+function extractTimeFromSheet(sheet, contentColIdx, categoryColIdx, useColCTime) {
+  var data    = sheet.getDataRange().getValues().slice(REPORT_SKIP_ROW);
+  var total   = 0;
 
   for (var i = 0; i < data.length; i++) {
     if (!isScheduleRow(data[i]) || isClassBunkRow(data[i])) continue;
     var category = String(data[i][categoryColIdx] || '').trim();
     var content  = String(data[i][contentColIdx]  || '').trim();
-    if (category !== '' && content !== '') cnt++;
+    if (category === '' || content === '') continue;
+
+    if (useColCTime) {
+      // はるかさん: C列(index 2)に記載の時間値を加算
+      //   数値(分)の場合はそのまま、時刻型(0:30 等)の場合は分に換算
+      var colC = data[i][2];
+      if (colC instanceof Date) {
+        total += colC.getHours() * 60 + colC.getMinutes();
+      } else if (typeof colC === 'number' && colC > 0) {
+        // スプレッドシートが時刻を小数(0.020833...=30分)で持つ場合
+        total += colC < 1 ? Math.round(colC * 24 * 60) : colC;
+      }
+    } else {
+      total += 30;
+    }
   }
 
-  var minutes = cnt * 30;
-  Logger.log('    → 対応時間: ' + cnt + '行 × 30分 = ' + minutes + '分');
-  return minutes;
+  Logger.log('    → 対応時間: ' + total + '分');
+  return total;
 }
 
 // ================================================================
