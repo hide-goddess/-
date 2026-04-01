@@ -58,7 +58,7 @@ var STAFF_LIST = [
   { displayName: 'ななこ',     reportId: '1joyW47gyikwF1tRTRfgiy-ldcsNKef73Ne4JAE1Lvhs',  contentColIdx: 2, categoryColIdx: 1, useColCTime: false, csCategoryFilter: null },
   { displayName: 'ともえ',     reportId: '1rKUxHw1Rwkc9BQsT9nY_15khBa2bRinJjZpDInOi7-A', contentColIdx: 2, categoryColIdx: 1, useColCTime: false, csCategoryFilter: null },
   { displayName: 'はるかさん', reportId: '1ZRulEZaZqUxvhYIliYskskGo2_KDw2dWizN04WgOi1w', contentColIdx: 4, categoryColIdx: 3, useColCTime: true,  csCategoryFilter: null }, // E〜K列 / D列カテゴリ / C列時間合計
-  { displayName: 'りお',       reportId: '1OLvkp5LXrCEiwnSNVfDK-mWPZ4Dka1l-l25EFRoAQgg', contentColIdx: 2, categoryColIdx: 1, useColCTime: false, csCategoryFilter: null },
+  { displayName: 'りお',       reportId: '1OLvkp5LXrCEiwnSNVfDK-mWPZ4Dka1l-l25EFRoAQgg', contentColIdx: 3, categoryColIdx: 2, useColCTime: false, csCategoryFilter: null }, // D列=業務内容 / C列=カテゴリ
   { displayName: 'ゆうか',     reportId: '1MaaS2V8L0KU48-0pPql9_0Sl5nE9aj6Rm6d5ONbTvFk', contentColIdx: 2, categoryColIdx: 1, useColCTime: false, csCategoryFilter: null },
   { displayName: 'みおなさん', reportId: '1mPtv-l2u3JKBpKcRG0JZc5bSqw2e630vkfI-Je04Y6k', contentColIdx: 2, categoryColIdx: 1, useColCTime: false, csCategoryFilter: null },
 ];
@@ -120,9 +120,11 @@ function toYMD(cellVal) {
 // ================================================================
 
 function extractKenCount(text) {
-  var n = text.replace(/[０-９]/g, function(s) {
+  var n = String(text || '').replace(/[０-９]/g, function(s) {
     return String.fromCharCode(s.charCodeAt(0) - 0xFEE0);
   });
+  // 「クラス分け○件」を除去（他カテゴリ行の業務内容に混入するクラス分け件数を排除）
+  n = n.replace(/クラス分け\s*\d+\s*件/g, '');
   var matches = n.match(/(\d+)\s*件/g);
   if (!matches) return 0;
   var sum = 0;
@@ -337,42 +339,55 @@ function sumContentCols(row, colStart) {
   return sum;
 }
 
-// 対応時間の抽出
-//   対象行: カテゴリ列に値があり、かつ業務内容列に〇件パターンがある行のみ
-//          ただしカテゴリが「クラス分け」の行は除外
+// 対応時間の抽出（2ステップ方式）
+//
+//   ステップ1: 業務内容列に件数パターンがある行のカテゴリ名を収集
+//   ステップ2: そのカテゴリ名を持つ行のうち、
+//             業務内容が空でなく「クラス分け」を含まない行で時間計算
 //
 //   その他全員 (useColCTime=false): 対象行数 × 30分
 //   はるかさん  (useColCTime=true):  対象行の C列値（h単位）× 60 を合計
-//   csCategoryFilter: 指定した場合、そのカテゴリ名を含む行のみを時間計算対象にする
+//   csCategoryFilter: 指定した場合、そのカテゴリ名を含む行のみをステップ1の対象にする
 function extractTimeFromSheet(sheet, contentColIdx, categoryColIdx, useColCTime, csCategoryFilter) {
   var data  = sheet.getDataRange().getValues().slice(REPORT_SKIP_ROW);
   var total = 0;
 
+  // ステップ1: 業務内容列に件数パターンがある行のカテゴリ名を収集
+  var targetCategories = {};
   for (var i = 0; i < data.length; i++) {
-    if (!isScheduleRow(data[i]) || isClassBunkRow(data[i], categoryColIdx)) continue;  // カテゴリ列で「クラス分け」を除外
-
+    if (!isScheduleRow(data[i]) || isClassBunkRow(data[i], categoryColIdx)) continue;
     var category = String(data[i][categoryColIdx] || '').trim();
-    var content  = String(data[i][contentColIdx]  || '').trim();
-
-    // カテゴリが空、または業務内容に「〇件」パターンがない行はスキップ
     if (category === '') continue;
-    if (extractKenCount(content) === 0) continue;
 
-    // csCategoryFilter が指定されている場合、指定カテゴリのみを対象にする
+    // csCategoryFilter がある場合はそのカテゴリのみ対象
     if (csCategoryFilter && csCategoryFilter.length > 0) {
       var matched = false;
       for (var f = 0; f < csCategoryFilter.length; f++) {
-        if (category.indexOf(csCategoryFilter[f]) !== -1) {
-          matched = true;
-          break;
-        }
+        if (category.indexOf(csCategoryFilter[f]) !== -1) { matched = true; break; }
       }
       if (!matched) continue;
     }
 
+    var content = String(data[i][contentColIdx] || '').trim();
+    if (extractKenCount(content) > 0) {
+      targetCategories[category] = true;
+    }
+  }
+
+  Logger.log('    → 対象カテゴリ: [' + Object.keys(targetCategories).join(', ') + ']');
+
+  // ステップ2: 対象カテゴリ × 業務内容が空でなく「クラス分け」を含まない行で時間計算
+  for (var i = 0; i < data.length; i++) {
+    if (!isScheduleRow(data[i]) || isClassBunkRow(data[i], categoryColIdx)) continue;
+    var category = String(data[i][categoryColIdx] || '').trim();
+    if (category === '' || !targetCategories[category]) continue;
+
+    var content = String(data[i][contentColIdx] || '').trim();
+    if (content === '') continue;                        // 業務内容が空の行はスキップ
+    if (content.indexOf('クラス分け') !== -1) continue; // 業務内容に「クラス分け」含む行はスキップ
+
     if (useColCTime) {
       // はるかさん: C列(index 2) の値を時間(h)として分に換算して加算
-      //   表示例 0.50 → 0.5h → 30分、2.50 → 2.5h → 150分
       var colC = data[i][2];
       if (typeof colC === 'number' && colC > 0) {
         total += Math.round(colC * 60); // h → 分
