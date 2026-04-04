@@ -46,21 +46,26 @@ var SS_ID = {
 
 var STAFF_LIST = [
   // contentColIdx:  業務内容列の先頭インデックス（0始まり）
-  //   C列=2 (C〜I が結合: yukinoさん/菜々子さん/ともえさん/りおさん/優花さん/みおなさん)
-  //   E列=4 (E〜K が結合: はるかさん)
+  //   C列=2 (yukinoさん/菜々子さん/ともえさん/優花さん/みおなさん)
+  //   D列=3 (りおさん: C列がカテゴリ、D列が業務内容)
+  //   E列=4 (はるかさん)
   // categoryColIdx: カテゴリ列のインデックス（0始まり）
-  //   B列=1 (その他全員)
+  //   B列=1 (あゆみ/ななこ/ともえ/ゆうか/みおなさん)
+  //   C列=2 (りおさん: C列がカテゴリ)
   //   D列=3 (はるかさん)
   // useColCTime: true のとき、対応時間はC列(index 2)の値を合計する（はるかさんのみ）
   // csCategoryFilter: 指定した場合、そのカテゴリ名を含む行のみを対応時間の計算対象にする
   //   null = 全カテゴリを対象（クラス分けは除外）
-  { displayName: 'あゆみ',     reportId: '17YS1m15AZDCBsFKwRq0LEBGsf7jY4exCTJXyhZfDW9E', contentColIdx: 2, categoryColIdx: 1, useColCTime: false, csCategoryFilter: ['LINE対応'] }, // LINE対応カテゴリ × 0.5h
-  { displayName: 'ななこ',     reportId: '1joyW47gyikwF1tRTRfgiy-ldcsNKef73Ne4JAE1Lvhs',  contentColIdx: 2, categoryColIdx: 1, useColCTime: false, csCategoryFilter: null },
-  { displayName: 'ともえ',     reportId: '1rKUxHw1Rwkc9BQsT9nY_15khBa2bRinJjZpDInOi7-A', contentColIdx: 2, categoryColIdx: 1, useColCTime: false, csCategoryFilter: null },
-  { displayName: 'はるかさん', reportId: '1ZRulEZaZqUxvhYIliYskskGo2_KDw2dWizN04WgOi1w', contentColIdx: 4, categoryColIdx: 3, useColCTime: true,  csCategoryFilter: null }, // E〜K列 / D列カテゴリ / C列時間合計
-  { displayName: 'りお',       reportId: '1OLvkp5LXrCEiwnSNVfDK-mWPZ4Dka1l-l25EFRoAQgg', contentColIdx: 3, categoryColIdx: 2, useColCTime: false, csCategoryFilter: null }, // D列=業務内容 / C列=カテゴリ
-  { displayName: 'ゆうか',     reportId: '1MaaS2V8L0KU48-0pPql9_0Sl5nE9aj6Rm6d5ONbTvFk', contentColIdx: 2, categoryColIdx: 1, useColCTime: false, csCategoryFilter: null },
-  { displayName: 'みおなさん', reportId: '1mPtv-l2u3JKBpKcRG0JZc5bSqw2e630vkfI-Je04Y6k', contentColIdx: 2, categoryColIdx: 1, useColCTime: false, csCategoryFilter: null },
+  // excludeCategories: 件数・時間の両方からカテゴリ単位で除外するカテゴリ名リスト
+  //   「クラス分け」は全員に共通で除外（isClassBunkRow で処理）
+  //   それ以外で個別に除外したいカテゴリをここに指定
+  { displayName: 'あゆみ',     reportId: '17YS1m15AZDCBsFKwRq0LEBGsf7jY4exCTJXyhZfDW9E', contentColIdx: 2, categoryColIdx: 1, useColCTime: false, csCategoryFilter: ['LINE対応'], excludeCategories: [] },
+  { displayName: 'ななこ',     reportId: '1joyW47gyikwF1tRTRfgiy-ldcsNKef73Ne4JAE1Lvhs',  contentColIdx: 2, categoryColIdx: 1, useColCTime: false, csCategoryFilter: null,         excludeCategories: [] },
+  { displayName: 'ともえ',     reportId: '1rKUxHw1Rwkc9BQsT9nY_15khBa2bRinJjZpDInOi7-A', contentColIdx: 2, categoryColIdx: 1, useColCTime: false, csCategoryFilter: null,         excludeCategories: [] },
+  { displayName: 'はるかさん', reportId: '1ZRulEZaZqUxvhYIliYskskGo2_KDw2dWizN04WgOi1w', contentColIdx: 4, categoryColIdx: 3, useColCTime: true,  csCategoryFilter: null,         excludeCategories: [] }, // E〜K列 / D列カテゴリ / C列時間合計
+  { displayName: 'りお',       reportId: '1OLvkp5LXrCEiwnSNVfDK-mWPZ4Dka1l-l25EFRoAQgg', contentColIdx: 3, categoryColIdx: 2, useColCTime: false, csCategoryFilter: null,         excludeCategories: [] }, // D列=業務内容 / C列=カテゴリ
+  { displayName: 'ゆうか',     reportId: '1MaaS2V8L0KU48-0pPql9_0Sl5nE9aj6Rm6d5ONbTvFk', contentColIdx: 2, categoryColIdx: 1, useColCTime: false, csCategoryFilter: null,         excludeCategories: ['CTO室'] }, // CTO室は件数・時間ともに除外
+  { displayName: 'みおなさん', reportId: '1mPtv-l2u3JKBpKcRG0JZc5bSqw2e630vkfI-Je04Y6k', contentColIdx: 2, categoryColIdx: 1, useColCTime: false, csCategoryFilter: null,         excludeCategories: [] },
 ];
 
 // 担当者列の最大スロット数（STAFF_LIST の人数に合わせる）
@@ -156,6 +161,21 @@ function isClassBunkRow(row, categoryColIdx) {
 }
 
 // ================================================================
+// ヘルパー: スタッフ個別の除外カテゴリに該当する行かどうか判定
+//   excludeCategories: 除外するカテゴリ名リスト（例: ['CTO室']）
+// ================================================================
+
+function isExcludedCategoryRow(row, categoryColIdx, excludeCategories) {
+  if (!excludeCategories || excludeCategories.length === 0) return false;
+  var idx      = (typeof categoryColIdx === 'number') ? categoryColIdx : 1;
+  var category = String(row[idx] || '').trim();
+  for (var i = 0; i < excludeCategories.length; i++) {
+    if (category.indexOf(excludeCategories[i]) !== -1) return true;
+  }
+  return false;
+}
+
+// ================================================================
 // 毎日トリガーで実行するメイン関数
 // ================================================================
 
@@ -207,7 +227,7 @@ function processDate(date) {
 
   for (var i = 0; i < STAFF_LIST.length; i++) {
     var staff  = STAFF_LIST[i];
-    var result = getDataFromReport(staff.reportId, year, month, day, staff.contentColIdx, staff.categoryColIdx, staff.useColCTime, staff.csCategoryFilter);
+    var result = getDataFromReport(staff.reportId, year, month, day, staff.contentColIdx, staff.categoryColIdx, staff.useColCTime, staff.csCategoryFilter, staff.excludeCategories);
     if (result.count > 0) {
       respondents.push(staff.displayName);
       totalCount += result.count;
@@ -232,7 +252,7 @@ function processDate(date) {
 //   返値: { count: 件数, time: 対応時間(分) }
 // ================================================================
 
-function getDataFromReport(reportId, year, month, day, contentColIdx, categoryColIdx, useColCTime, csCategoryFilter) {
+function getDataFromReport(reportId, year, month, day, contentColIdx, categoryColIdx, useColCTime, csCategoryFilter, excludeCategories) {
   try {
     var ss            = SpreadsheetApp.openById(reportId);
     var tabCandidates = generateTabNameCandidates(year, month, day);
@@ -252,8 +272,8 @@ function getDataFromReport(reportId, year, month, day, contentColIdx, categoryCo
     }
 
     return {
-      count: extractCountFromSheet(sheet, contentColIdx, categoryColIdx),
-      time:  extractTimeFromSheet(sheet, contentColIdx, categoryColIdx, useColCTime, csCategoryFilter),
+      count: extractCountFromSheet(sheet, contentColIdx, categoryColIdx, excludeCategories),
+      time:  extractTimeFromSheet(sheet, contentColIdx, categoryColIdx, useColCTime, csCategoryFilter, excludeCategories),
     };
 
   } catch (e) {
@@ -296,7 +316,7 @@ function generateTabNameCandidates(year, month, day) {
 //   戦略1: 「〇件」パターン / 戦略2: C〜I列の数値合計（フォールバック）
 // ================================================================
 
-function extractCountFromSheet(sheet, contentColIdx, categoryColIdx) {
+function extractCountFromSheet(sheet, contentColIdx, categoryColIdx, excludeCategories) {
   var all  = sheet.getDataRange().getValues();
   var data = all.slice(REPORT_SKIP_ROW);
 
@@ -304,7 +324,8 @@ function extractCountFromSheet(sheet, contentColIdx, categoryColIdx) {
   var kenTotal = 0;
   for (var i = 0; i < data.length; i++) {
     if (!isScheduleRow(data[i])) continue;
-    if (isClassBunkRow(data[i], categoryColIdx)) continue;  // カテゴリ列で「クラス分け」を除外
+    if (isClassBunkRow(data[i], categoryColIdx)) continue;
+    if (isExcludedCategoryRow(data[i], categoryColIdx, excludeCategories)) continue; // 個別除外カテゴリ（CTO室等）
     for (var c = 0; c < data[i].length; c++) {
       kenTotal += extractKenCount(String(data[i][c] || ''));
     }
@@ -318,7 +339,8 @@ function extractCountFromSheet(sheet, contentColIdx, categoryColIdx) {
   var grandTotal = 0;
   for (var i = 0; i < data.length; i++) {
     if (!isScheduleRow(data[i])) continue;
-    if (isClassBunkRow(data[i], categoryColIdx)) continue;  // カテゴリ列で「クラス分け」を除外
+    if (isClassBunkRow(data[i], categoryColIdx)) continue;
+    if (isExcludedCategoryRow(data[i], categoryColIdx, excludeCategories)) continue; // 個別除外カテゴリ（CTO室等）
     grandTotal += sumContentCols(data[i], contentColIdx);
   }
   if (grandTotal > 0) {
@@ -348,7 +370,7 @@ function sumContentCols(row, colStart) {
 //   その他全員 (useColCTime=false): 対象行数 × 30分
 //   はるかさん  (useColCTime=true):  対象行の C列値（h単位）× 60 を合計
 //   csCategoryFilter: 指定した場合、そのカテゴリ名を含む行のみをステップ1の対象にする
-function extractTimeFromSheet(sheet, contentColIdx, categoryColIdx, useColCTime, csCategoryFilter) {
+function extractTimeFromSheet(sheet, contentColIdx, categoryColIdx, useColCTime, csCategoryFilter, excludeCategories) {
   var data  = sheet.getDataRange().getValues().slice(REPORT_SKIP_ROW);
   var total = 0;
 
@@ -356,6 +378,7 @@ function extractTimeFromSheet(sheet, contentColIdx, categoryColIdx, useColCTime,
   var targetCategories = {};
   for (var i = 0; i < data.length; i++) {
     if (!isScheduleRow(data[i]) || isClassBunkRow(data[i], categoryColIdx)) continue;
+    if (isExcludedCategoryRow(data[i], categoryColIdx, excludeCategories)) continue;
     var category = String(data[i][categoryColIdx] || '').trim();
     if (category === '') continue;
 
@@ -379,6 +402,7 @@ function extractTimeFromSheet(sheet, contentColIdx, categoryColIdx, useColCTime,
   // ステップ2: 対象カテゴリ × 業務内容が空でなく「クラス分け」を含まない行で時間計算
   for (var i = 0; i < data.length; i++) {
     if (!isScheduleRow(data[i]) || isClassBunkRow(data[i], categoryColIdx)) continue;
+    if (isExcludedCategoryRow(data[i], categoryColIdx, excludeCategories)) continue;
     var category = String(data[i][categoryColIdx] || '').trim();
     if (category === '' || !targetCategories[category]) continue;
 
@@ -656,7 +680,7 @@ function debugMarch31() {
       // 最終的な集計結果
       var result = getDataFromReport(staff.reportId, year, month, day,
                                      staff.contentColIdx, staff.categoryColIdx,
-                                     staff.useColCTime, staff.csCategoryFilter);
+                                     staff.useColCTime, staff.csCategoryFilter, staff.excludeCategories);
       Logger.log('  >>> 結果: 件数=' + result.count + '件 / 時間=' + result.time + '分');
 
     } catch(e) {
