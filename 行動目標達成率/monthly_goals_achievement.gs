@@ -217,14 +217,16 @@ function _updateMonthData(sheet, month) {
 
     try {
       const memberSS = SpreadsheetApp.openById(member.ssId);
-      let srcSheet = memberSS.getSheetByName(srcTabName);
+      let srcSheet;
 
-      // タブ名で見つからない場合、tabIds に gid が指定されていればIDで再検索
-      if (!srcSheet && member.tabIds && member.tabIds[month]) {
+      // tabIds が指定されている場合はgidで直接取得（同名の空タブが存在する場合に対応）
+      if (member.tabIds && member.tabIds[month]) {
         srcSheet = _getSheetById(memberSS, member.tabIds[month]);
         if (srcSheet) {
-          Logger.log(`${member.name}: タブ名 "${srcTabName}" が見つからないため、ID ${member.tabIds[month]} で "${srcSheet.getName()}" を取得`);
+          Logger.log(`${member.name}: tabIds指定により ID ${member.tabIds[month]} で "${srcSheet.getName()}" を取得`);
         }
+      } else {
+        srcSheet = memberSS.getSheetByName(srcTabName);
       }
 
       if (!srcSheet) {
