@@ -448,3 +448,56 @@ function debugMemberSheets() {
     }
   }
 }
+
+// ==================================================
+// トリガー設定: 毎日 日本時間 4:00 に runAll() を自動実行
+//
+// 使い方:
+//   1. この関数 setDailyTrigger() を一度だけ手動で実行する
+//   2. 以降は毎日4時にrunAll()が自動実行される
+//   3. トリガーを削除したい場合は deleteDailyTrigger() を実行する
+//
+// ※ GASプロジェクトのタイムゾーンが「Asia/Tokyo」に設定されている必要があります
+//    設定場所: GASエディタ → 歯車アイコン（プロジェクトの設定）→ タイムゾーン
+// ==================================================
+function setDailyTrigger() {
+  // 既存のrunAll()トリガーをすべて削除（重複防止）
+  var triggers = ScriptApp.getProjectTriggers();
+  var deleted = 0;
+  for (var i = 0; i < triggers.length; i++) {
+    if (triggers[i].getHandlerFunction() === 'runAll') {
+      ScriptApp.deleteTrigger(triggers[i]);
+      deleted++;
+    }
+  }
+  if (deleted > 0) {
+    Logger.log('🗑️ 既存のrunAllトリガーを ' + deleted + '件 削除しました');
+  }
+
+  // 毎日 4:00〜5:00（プロジェクトのタイムゾーン = Asia/Tokyo）に実行
+  ScriptApp.newTrigger('runAll')
+    .timeBased()
+    .atHour(4)       // 4時台（4:00〜4:59の間に実行）
+    .everyDays(1)    // 毎日
+    .create();
+
+  Logger.log('✅ トリガー設定完了: 毎日 4:00（JST）に runAll() を自動実行します');
+  Logger.log('   ※ GASプロジェクトのタイムゾーンが Asia/Tokyo であることを確認してください');
+}
+
+// ==================================================
+// トリガー削除: runAll()の自動実行を停止する
+// ==================================================
+function deleteDailyTrigger() {
+  var triggers = ScriptApp.getProjectTriggers();
+  var deleted = 0;
+  for (var i = 0; i < triggers.length; i++) {
+    if (triggers[i].getHandlerFunction() === 'runAll') {
+      ScriptApp.deleteTrigger(triggers[i]);
+      deleted++;
+    }
+  }
+  Logger.log(deleted > 0
+    ? '✅ runAllのトリガーを ' + deleted + '件 削除しました'
+    : '⚠️ runAllのトリガーは見つかりませんでした');
+}
