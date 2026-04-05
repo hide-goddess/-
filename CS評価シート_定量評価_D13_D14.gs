@@ -25,9 +25,15 @@ var CS_HYOKA_CONFIG = {
   memberNameColInNippou: 0,
 
   // メンバー一覧（16名）
+  // tabGids     : タブ名で見つからない月はgidでも検索する { 'tabMonth文字列': gid }
+  // monthSsIds  : 特定月だけ別のssIdを使う { 'ymKey': ssId }
   members: [
     { name: '松元陸',    ssId: '1no-0rtLzKWybhJYne41zINUDqWh8xagF6kh5UvifPOs' },
-    { name: '平松弥央菜', ssId: '1jeLIm3kRHl5-4b3EwvgrNnwfoAFG036ymmL2BggaRks' },
+    {
+      name: '平松弥央菜', ssId: '1jeLIm3kRHl5-4b3EwvgrNnwfoAFG036ymmL2BggaRks',
+      // 2月タブが名前で見つからないためgidで検索
+      tabGids: { '2': 1824428192 },
+    },
     { name: '小林陽香',  ssId: '1zL9jpB8WPmCgJaLudY8usZrHPHK7TBmVKLt17RAx0Yk' },
     { name: '小林未侑',  ssId: '1mpuozouSmS8BJNFk2zYQAGlIp9m0M3fp7yOu3Ta_e4I' },
     { name: '中田菜々子', ssId: '1eK9tZEvv_H7iXCi7b2LsREzIEsyN17SYptklB3HXke4' },
@@ -35,17 +41,25 @@ var CS_HYOKA_CONFIG = {
     { name: '宇梶知恵',  ssId: '1vLIsuqdOoWrmH-EXdBkUL3XSkcYxl5sEW7NGillEviI' },
     { name: '増子真也子', ssId: '1sbHXZaFivRzliSZEX72rvLFN4EU7bR6ltXbB39lZHVc' },
     { name: '川端歩実',  ssId: '1sLz2fvbPOA1mwwGAUOtn2zOO97XosnbI1jXqJ2n2vlc' },
-    { name: '田中里奈',  ssId: '1wKSMquCgtTtDjd5K-3PCpEkW-EgqZ3LoUT6Ec-nBwGI' }, // ← ssId更新済み
+    {
+      name: '田中里奈',  ssId: '1wKSMquCgtTtDjd5K-3PCpEkW-EgqZ3LoUT6Ec-nBwGI',
+      // 3月タブは旧スプシにしか存在しないため月別ssIdを指定
+      monthSsIds: { '202603': '1LZisdyfMmShNsD0cgZtiLZe7uyUPfDDUrLv6U4h_ra0' },
+      tabGids:    { '3': 1499764375 },
+    },
     { name: '山下優花',  ssId: '15PtZ4__btQ2UxpBNPbGdfGd8dKpjenRAT6Mrn3bMVck' },
     { name: '中村八重子', ssId: '1QI8POM4hZAkjjwSeWwamxDmoUx4-zNRD3CTLS0SJyhs' },
     { name: '佐藤大河',  ssId: '1PMGKmUaU2hze5N4Ar7eCcU_uJz-jQThdq_3eGWuI_kw' },
     { name: '青木博資',  ssId: '1PecGIyJDbHy2y1yXIia0Ada1HENe3qY6W-HSppiyUTc' },
     { name: '田畑秀晃',  ssId: '1a7K7N062cHMRTwX8lYpujRGH6b6z1s9bDf--v_DJZ7M' },
-    { name: '田中春奈',  ssId: '1vmMTNe38hVlvcbK2s21MU70Dwi1W7VYqppLsfKJ3z2Y' },
+    {
+      name: '田中春奈',  ssId: '1vmMTNe38hVlvcbK2s21MU70Dwi1W7VYqppLsfKJ3z2Y',
+      // 2月タブが名前で見つからないためgidで検索
+      tabGids: { '2': 1856569741 },
+    },
   ],
 
   // 対象月設定
-  // ✅ 変更2: 2月・3月を追加
   targetMonths: [
     { tabMonth: '12', year: 2025, month: 12, ymKey: '202512' },
     { tabMonth: '1',  year: 2026, month: 1,  ymKey: '202601' },
@@ -54,27 +68,28 @@ var CS_HYOKA_CONFIG = {
   ],
 
   // 日報管理スプシの月別達成率設定
-  // ✅ 変更2: 2月・3月を追加（同じ「行動目標達成率」タブを参照）
+  // achievementColIndices: 月ごとに異なる列を指定することで月別の値を正しく取得する
+  //   E列(4)=12月, G列(6)=1月, I列(8)=2月, K列(10)=3月
   nippouMonthConfig: {
     '202512': {
       nippouTabName: '行動目標達成率',
       nippouTabGid: 1754320975,
-      achievementColIndices: [4, 6, 8],
+      achievementColIndices: [4],   // E列 = 12月の達成率
     },
     '202601': {
       nippouTabName: '行動目標達成率',
       nippouTabGid: 1754320975,
-      achievementColIndices: [4, 6, 8],
+      achievementColIndices: [6],   // G列 = 1月の達成率
     },
     '202602': {
       nippouTabName: '行動目標達成率',
       nippouTabGid: 1754320975,
-      achievementColIndices: [4, 6, 8],
+      achievementColIndices: [8],   // I列 = 2月の達成率
     },
     '202603': {
       nippouTabName: '行動目標達成率',
       nippouTabGid: 1754320975,
-      achievementColIndices: [4, 6, 8],
+      achievementColIndices: [10],  // K列 = 3月の達成率
     },
   },
 };
@@ -140,12 +155,22 @@ function setRow13_MankokuRate() {
   for (var k = 0; k < cfg.members.length; k++) {
     var member = cfg.members[k];
     try {
-      var memberSS = SpreadsheetApp.openById(member.ssId);
-
       for (var j = 0; j < cfg.targetMonths.length; j++) {
         var m = cfg.targetMonths[j];
+
+        // 月別ssId override対応
+        var activeSsId = (member.monthSsIds && member.monthSsIds[m.ymKey]) || member.ssId;
+        var memberSS = SpreadsheetApp.openById(activeSsId);
+
+        // タブをまず名前で検索、見つからなければgidで検索
         var tabName = '定量評価シート_' + m.tabMonth + '月';
         var sheet = memberSS.getSheetByName(tabName);
+        if (!sheet && member.tabGids && member.tabGids[m.tabMonth]) {
+          sheet = csHyokaGetSheetByGid(memberSS, member.tabGids[m.tabMonth]);
+          if (sheet) {
+            Logger.log('  ' + member.name + ': gidでタブ取得 → ' + sheet.getName() + ' (gid=' + member.tabGids[m.tabMonth] + ')');
+          }
+        }
 
         if (!sheet) {
           Logger.log('⚠️ ' + member.name + ': タブが見つかりません → ' + tabName);
@@ -154,7 +179,6 @@ function setRow13_MankokuRate() {
 
         var value = mankokuByMonth[m.ymKey];
         if (value !== undefined) {
-          // ✅ 変更1: 四捨五入なし・値をそのまま書き込み、0.00%形式で表示（例: 0.0885 → 8.85%）
           var cell = sheet.getRange('D13');
           cell.setValue(value);
           cell.setNumberFormat('0.00%');
@@ -193,7 +217,7 @@ function setRow14_AchievementRate() {
       Logger.log('   実在するタブ一覧: ' + nippouSS.getSheets().map(function(s){return s.getName();}).join(', '));
       continue;
     }
-    Logger.log('✅ 日報シート取得: ' + nippouSheet.getName());
+    Logger.log('✅ 日報シート取得: ' + nippouSheet.getName() + ' / 使用列インデックス: ' + config.achievementColIndices.join(','));
 
     var data = nippouSheet.getDataRange().getValues();
     Logger.log(m.ymKey + ' 日報シート 取得行数: ' + data.length);
@@ -208,13 +232,13 @@ function setRow14_AchievementRate() {
       if (memberAvg !== null) {
         totalMemberAvg += memberAvg;
         validMemberCount++;
-        Logger.log('  ' + member.name + ' 達成率平均: ' + (memberAvg * 100).toFixed(2) + '%');
+        Logger.log('  ' + member.name + ' 達成率: ' + (memberAvg * 100).toFixed(2) + '%');
       } else {
-        Logger.log('  ⚠️ ' + member.name + ': 達成率データが見つかりません');
+        Logger.log('  ⚠️ ' + member.name + ': 達成率データが見つかりません（' + m.ymKey + '）');
       }
     }
 
-    // ✅ 変更3: 分母を常に16名固定（cfg.members.length）にする
+    // 分母を常に16名固定（cfg.members.length）にする
     var finalAvg = cfg.members.length > 0 ? totalMemberAvg / cfg.members.length : 0;
 
     Logger.log(m.ymKey + ' 全体達成率平均: ' + (finalAvg * 100).toFixed(2) + '% （有効: ' + validMemberCount + '/' + cfg.members.length + '名）');
@@ -222,16 +246,25 @@ function setRow14_AchievementRate() {
     for (var k = 0; k < cfg.members.length; k++) {
       var member = cfg.members[k];
       try {
-        var memberSS = SpreadsheetApp.openById(member.ssId);
+        // 月別ssId override対応
+        var activeSsId = (member.monthSsIds && member.monthSsIds[m.ymKey]) || member.ssId;
+        var memberSS = SpreadsheetApp.openById(activeSsId);
+
+        // タブをまず名前で検索、見つからなければgidで検索
         var tabName = '定量評価シート_' + m.tabMonth + '月';
         var sheet = memberSS.getSheetByName(tabName);
+        if (!sheet && member.tabGids && member.tabGids[m.tabMonth]) {
+          sheet = csHyokaGetSheetByGid(memberSS, member.tabGids[m.tabMonth]);
+          if (sheet) {
+            Logger.log('  ' + member.name + ': gidでタブ取得 → ' + sheet.getName() + ' (gid=' + member.tabGids[m.tabMonth] + ')');
+          }
+        }
 
         if (!sheet) {
           Logger.log('⚠️ ' + member.name + ': タブが見つかりません → ' + tabName);
           continue;
         }
 
-        // ✅ 変更1: 四捨五入なし・値をそのまま書き込み、0.00%形式で表示
         var cell14 = sheet.getRange('D14');
         cell14.setValue(finalAvg);
         cell14.setNumberFormat('0.00%');
@@ -245,7 +278,8 @@ function setRow14_AchievementRate() {
 }
 
 // ==================================================
-// ヘルパー: メンバーの達成率平均を計算
+// ヘルパー: メンバーの達成率を計算
+// colIndicesで指定した列の数値をすべて合計し、数値が入っているセル数で割る
 // ==================================================
 function csHyokaCalcMemberAvg(data, memberName, colIndices, nameColIdx) {
   var sum = 0;
@@ -258,6 +292,7 @@ function csHyokaCalcMemberAvg(data, memberName, colIndices, nameColIdx) {
     if (nameCell === memberName || nameCell.indexOf(memberName) !== -1) {
       for (var j = 0; j < colIndices.length; j++) {
         var val = row[colIndices[j]];
+        // 空白・文字列はスキップ、数値のみカウント
         if (val !== null && val !== '' && !isNaN(parseFloat(val))) {
           var numVal = parseFloat(val);
           // 1より大きい場合は%表記（例: 85）→ 0〜1に変換
@@ -355,8 +390,10 @@ function debugNippouSheet() {
     Logger.log('行動目標達成率シートが見つかりません');
     return;
   }
-  var data = targetSheet.getRange(1, 1, Math.min(30, targetSheet.getLastRow()), Math.min(12, targetSheet.getLastColumn())).getValues();
-  Logger.log('\n=== 行動目標達成率 先頭データ ===');
+  // 列数を広げてE,G,I,K列（index 4,6,8,10）まで確認
+  var lastCol = Math.min(12, targetSheet.getLastColumn());
+  var data = targetSheet.getRange(1, 1, Math.min(30, targetSheet.getLastRow()), lastCol).getValues();
+  Logger.log('\n=== 行動目標達成率 先頭データ（列A〜L）===');
   for (var i = 0; i < data.length; i++) {
     Logger.log('行' + (i + 1) + ': ' + data[i].join(' | '));
   }
