@@ -36,11 +36,23 @@ var CS_HYOKA_CONFIG = {
     },
     { name: '小林陽香',  ssId: '1zL9jpB8WPmCgJaLudY8usZrHPHK7TBmVKLt17RAx0Yk' },
     { name: '小林未侑',  ssId: '1mpuozouSmS8BJNFk2zYQAGlIp9m0M3fp7yOu3Ta_e4I' },
-    { name: '中田菜々子', ssId: '1eK9tZEvv_H7iXCi7b2LsREzIEsyN17SYptklB3HXke4' },
+    {
+      name: '中田菜々子', ssId: '1eK9tZEvv_H7iXCi7b2LsREzIEsyN17SYptklB3HXke4',
+      // 3月タブが名前で見つからないためgidで検索
+      tabGids: { '3': 774119771 },
+    },
     { name: '久保梨生',  ssId: '10CU-78ByNYhzr5LuIhK8makS1uZ_LSPK8HBuFGC9hhU' },
     { name: '宇梶知恵',  ssId: '1vLIsuqdOoWrmH-EXdBkUL3XSkcYxl5sEW7NGillEviI' },
-    { name: '増子真也子', ssId: '1sbHXZaFivRzliSZEX72rvLFN4EU7bR6ltXbB39lZHVc' },
-    { name: '川端歩実',  ssId: '1sLz2fvbPOA1mwwGAUOtn2zOO97XosnbI1jXqJ2n2vlc' },
+    {
+      name: '増子真也子', ssId: '1sbHXZaFivRzliSZEX72rvLFN4EU7bR6ltXbB39lZHVc',
+      // 2月タブが名前で見つからないためgidで検索
+      tabGids: { '2': 1111072032 },
+    },
+    {
+      name: '川端歩実',  ssId: '1sLz2fvbPOA1mwwGAUOtn2zOO97XosnbI1jXqJ2n2vlc',
+      // 3月タブが名前で見つからないためgidで検索
+      tabGids: { '3': 270359130 },
+    },
     {
       name: '田中里奈',  ssId: '1wKSMquCgtTtDjd5K-3PCpEkW-EgqZ3LoUT6Ec-nBwGI',
       // 3月タブは旧スプシにしか存在しないため月別ssIdを指定
@@ -54,8 +66,8 @@ var CS_HYOKA_CONFIG = {
     { name: '田畑秀晃',  ssId: '1a7K7N062cHMRTwX8lYpujRGH6b6z1s9bDf--v_DJZ7M' },
     {
       name: '田中春奈',  ssId: '1vmMTNe38hVlvcbK2s21MU70Dwi1W7VYqppLsfKJ3z2Y',
-      // 2月タブが名前で見つからないためgidで検索
-      tabGids: { '2': 1856569741 },
+      // 3月タブが名前で見つからないためgidで検索（以前2月と誤設定していたものを修正）
+      tabGids: { '3': 1856569741 },
     },
   ],
 
@@ -70,28 +82,28 @@ var CS_HYOKA_CONFIG = {
   ],
 
   // 日報管理スプシの月別達成率設定
-  // achievementColIndices: 月ごとに異なる列を指定することで月別の値を正しく取得する
-  //   E列(4)=12月, G列(6)=1月, I列(8)=2月, K列(10)=3月
+  // achievementColIndices: E列(index=4)を全月共通で使用
+  // 各メンバーの達成率 = 名前が一致する行のE列の値（複数行ある場合は平均、空白はスキップ）
   nippouMonthConfig: {
     '202512': {
       nippouTabName: '行動目標達成率',
       nippouTabGid: 1754320975,
-      achievementColIndices: [4],   // E列 = 12月の達成率
+      achievementColIndices: [4],  // E列
     },
     '202601': {
       nippouTabName: '行動目標達成率',
       nippouTabGid: 1754320975,
-      achievementColIndices: [6],   // G列 = 1月の達成率
+      achievementColIndices: [4],  // E列
     },
     '202602': {
       nippouTabName: '行動目標達成率',
       nippouTabGid: 1754320975,
-      achievementColIndices: [8],   // I列 = 2月の達成率
+      achievementColIndices: [4],  // E列
     },
     '202603': {
       nippouTabName: '行動目標達成率',
       nippouTabGid: 1754320975,
-      achievementColIndices: [10],  // K列 = 3月の達成率
+      achievementColIndices: [4],  // E列
     },
   },
 };
