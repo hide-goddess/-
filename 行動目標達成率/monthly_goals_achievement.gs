@@ -10,7 +10,7 @@
 
 // ---- 設定 ----
 // ※ GASはすべての.gsファイルがグローバルスコープを共有するため var を使用
-var MAIN_SPREADSHEET_ID = '1gIygjcHKgGvg3j0RU0LxzrPeGxNF9cJeOrxznHqwOAo';
+var MAIN_SPREADSHEET_ID = '14A0vw4W--Tn3B30ylWjnVT-1tLjG9gmtXtRRNQatq3M';
 var ACHIEVEMENT_TAB_NAME = '行動目標達成率';
 
 // レイアウト定数
