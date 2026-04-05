@@ -60,10 +60,12 @@ var CS_HYOKA_CONFIG = {
   ],
 
   // 対象月設定
+  // altTabNames: タブ名が「定量評価シート_◯月」と一致しない場合に試みる代替名の一覧
   targetMonths: [
     { tabMonth: '12', year: 2025, month: 12, ymKey: '202512' },
     { tabMonth: '1',  year: 2026, month: 1,  ymKey: '202601' },
-    { tabMonth: '2',  year: 2026, month: 2,  ymKey: '202602' },
+    { tabMonth: '2',  year: 2026, month: 2,  ymKey: '202602',
+      altTabNames: ['定量評価シート_2月_'] },  // 末尾アンダースコアあり版にも対応
     { tabMonth: '3',  year: 2026, month: 3,  ymKey: '202603' },
   ],
 
@@ -162,9 +164,18 @@ function setRow13_MankokuRate() {
         var activeSsId = (member.monthSsIds && member.monthSsIds[m.ymKey]) || member.ssId;
         var memberSS = SpreadsheetApp.openById(activeSsId);
 
-        // タブをまず名前で検索、見つからなければgidで検索
+        // タブをまず正式名で検索 → 代替名 → gidの順で探す
         var tabName = '定量評価シート_' + m.tabMonth + '月';
         var sheet = memberSS.getSheetByName(tabName);
+        if (!sheet && m.altTabNames) {
+          for (var n = 0; n < m.altTabNames.length; n++) {
+            sheet = memberSS.getSheetByName(m.altTabNames[n]);
+            if (sheet) {
+              Logger.log('  ' + member.name + ': 代替名でタブ取得 → ' + sheet.getName());
+              break;
+            }
+          }
+        }
         if (!sheet && member.tabGids && member.tabGids[m.tabMonth]) {
           sheet = csHyokaGetSheetByGid(memberSS, member.tabGids[m.tabMonth]);
           if (sheet) {
@@ -250,9 +261,18 @@ function setRow14_AchievementRate() {
         var activeSsId = (member.monthSsIds && member.monthSsIds[m.ymKey]) || member.ssId;
         var memberSS = SpreadsheetApp.openById(activeSsId);
 
-        // タブをまず名前で検索、見つからなければgidで検索
+        // タブをまず正式名で検索 → 代替名 → gidの順で探す
         var tabName = '定量評価シート_' + m.tabMonth + '月';
         var sheet = memberSS.getSheetByName(tabName);
+        if (!sheet && m.altTabNames) {
+          for (var n = 0; n < m.altTabNames.length; n++) {
+            sheet = memberSS.getSheetByName(m.altTabNames[n]);
+            if (sheet) {
+              Logger.log('  ' + member.name + ': 代替名でタブ取得 → ' + sheet.getName());
+              break;
+            }
+          }
+        }
         if (!sheet && member.tabGids && member.tabGids[m.tabMonth]) {
           sheet = csHyokaGetSheetByGid(memberSS, member.tabGids[m.tabMonth]);
           if (sheet) {
