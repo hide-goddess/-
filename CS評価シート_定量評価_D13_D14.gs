@@ -218,92 +218,93 @@ function setRow13_MankokuRate() {
 }
 
 // ==================================================
-// D14: 全メンバー達成率の平均を全員のシートD14に記入
+// D14: 全メンバーの個人OKR達成率平均を全員のシートD14に記入
+//
+// 計算方法:
+//   各メンバーの定量評価シート_◯月タブのE21〜E23（個人OKR達成率）を読み込む
+//   → 記載がある行だけ合計して行数で割る（メンバーごとの達成率平均）
+//   → 16名分を合計して16で割る（全体平均）
+//   → 各メンバーのD14に書き込む
 // ==================================================
 function setRow14_AchievementRate() {
   var cfg = CS_HYOKA_CONFIG;
-  var nippouSS = SpreadsheetApp.openById(cfg.nippouSsId);
 
   for (var mi = 0; mi < cfg.targetMonths.length; mi++) {
     var m = cfg.targetMonths[mi];
-    var config = cfg.nippouMonthConfig[m.ymKey];
+    Logger.log('===== ' + m.ymKey + ' D14計算開始 =====');
 
-    if (!config) {
-      Logger.log('⚠️ ' + m.ymKey + ' の日報設定が nippouMonthConfig にありません');
-      continue;
-    }
+    var totalRate = 0;
+    var memberResults = []; // { member, sheet, rate } を格納して後でD14に書き込む
 
-    var nippouSheet = (config.nippouTabGid ? csHyokaGetSheetByGid(nippouSS, config.nippouTabGid) : null)
-                    || nippouSS.getSheetByName(config.nippouTabName);
-    if (!nippouSheet) {
-      Logger.log('❌ 日報シートが見つかりません: ' + config.nippouTabName);
-      Logger.log('   実在するタブ一覧: ' + nippouSS.getSheets().map(function(s){return s.getName();}).join(', '));
-      continue;
-    }
-    Logger.log('✅ 日報シート取得: ' + nippouSheet.getName() + ' / 使用列インデックス: ' + config.achievementColIndices.join(','));
-
-    var data = nippouSheet.getDataRange().getValues();
-    Logger.log(m.ymKey + ' 日報シート 取得行数: ' + data.length);
-
-    var totalMemberAvg = 0;
-    var validMemberCount = 0;
-
-    for (var k = 0; k < cfg.members.length; k++) {
-      var member = cfg.members[k];
-      var memberAvg = csHyokaCalcMemberAvg(data, member.name, config.achievementColIndices, cfg.memberNameColInNippou);
-
-      if (memberAvg !== null) {
-        totalMemberAvg += memberAvg;
-        validMemberCount++;
-        Logger.log('  ' + member.name + ' 達成率: ' + (memberAvg * 100).toFixed(2) + '%');
-      } else {
-        Logger.log('  ⚠️ ' + member.name + ': 達成率データが見つかりません（' + m.ymKey + '）');
-      }
-    }
-
-    // 分母を常に16名固定（cfg.members.length）にする
-    var finalAvg = cfg.members.length > 0 ? totalMemberAvg / cfg.members.length : 0;
-
-    Logger.log(m.ymKey + ' 全体達成率平均: ' + (finalAvg * 100).toFixed(2) + '% （有効: ' + validMemberCount + '/' + cfg.members.length + '名）');
-
+    // Step 1: 各メンバーの定量評価シートのE21〜E23を読み込み達成率平均を計算
     for (var k = 0; k < cfg.members.length; k++) {
       var member = cfg.members[k];
       try {
-        // 月別ssId override対応
         var activeSsId = (member.monthSsIds && member.monthSsIds[m.ymKey]) || member.ssId;
         var memberSS = SpreadsheetApp.openById(activeSsId);
 
-        // タブをまず正式名で検索 → 代替名 → gidの順で探す
+        // タブ検索: 正式名 → 代替名 → gid の順
         var tabName = '定量評価シート_' + m.tabMonth + '月';
         var sheet = memberSS.getSheetByName(tabName);
         if (!sheet && m.altTabNames) {
           for (var n = 0; n < m.altTabNames.length; n++) {
             sheet = memberSS.getSheetByName(m.altTabNames[n]);
-            if (sheet) {
-              Logger.log('  ' + member.name + ': 代替名でタブ取得 → ' + sheet.getName());
-              break;
-            }
+            if (sheet) { Logger.log('  ' + member.name + ': 代替名でタブ取得 → ' + sheet.getName()); break; }
           }
         }
         if (!sheet && member.tabGids && member.tabGids[m.tabMonth]) {
           sheet = csHyokaGetSheetByGid(memberSS, member.tabGids[m.tabMonth]);
-          if (sheet) {
-            Logger.log('  ' + member.name + ': gidでタブ取得 → ' + sheet.getName() + ' (gid=' + member.tabGids[m.tabMonth] + ')');
-          }
+          if (sheet) Logger.log('  ' + member.name + ': gidでタブ取得 → ' + sheet.getName());
         }
 
         if (!sheet) {
           Logger.log('⚠️ ' + member.name + ': タブが見つかりません → ' + tabName);
+          memberResults.push({ member: member, sheet: null, rate: 0 });
           continue;
         }
 
-        var cell14 = sheet.getRange('D14');
+        // E21〜E23（列5=E列、行21〜23）を読み込み
+        var eVals = sheet.getRange(21, 5, 3, 1).getValues();
+        var sum = 0;
+        var count = 0;
+        for (var r = 0; r < eVals.length; r++) {
+          var val = eVals[r][0];
+          // 数値が入っている行のみカウント（空白・文字列はスキップ）
+          if (val !== null && val !== '' && typeof val === 'number' && !isNaN(val)) {
+            sum += val;
+            count++;
+          }
+        }
+
+        // Google SheetsのE列は%形式で格納（87%=0.87, 124%=1.24）
+        // そのまま平均を取るだけでOK（変換不要）
+        var memberRate = count > 0 ? sum / count : 0;
+        totalRate += memberRate;
+        Logger.log('  ' + member.name + ' E21〜E23平均: ' + (memberRate * 100).toFixed(2) + '% （' + count + '行）');
+        memberResults.push({ member: member, sheet: sheet, rate: memberRate });
+
+      } catch (e) {
+        Logger.log('❌ ' + member.name + ' でエラー: ' + e.message);
+        memberResults.push({ member: member, sheet: null, rate: 0 });
+      }
+    }
+
+    // Step 2: 全体平均を計算（分母は常に16名固定）
+    var finalAvg = totalRate / cfg.members.length;
+    Logger.log(m.ymKey + ' 全体達成率平均: ' + (finalAvg * 100).toFixed(2) + '% （' + cfg.members.length + '名で割る）');
+
+    // Step 3: 全メンバーのD14に書き込み
+    for (var k = 0; k < memberResults.length; k++) {
+      var result = memberResults[k];
+      if (!result.sheet) continue;
+      try {
+        var cell14 = result.sheet.getRange('D14');
         cell14.setValue(finalAvg);
         cell14.setNumberFormat('0.00%');
         SpreadsheetApp.flush();
-        Logger.log('✅ ' + member.name + ' / ' + tabName + ' / D14 = ' + (finalAvg * 100).toFixed(2) + '%');
+        Logger.log('✅ ' + result.member.name + ' / 定量評価シート_' + m.tabMonth + '月 / D14 = ' + (finalAvg * 100).toFixed(2) + '%');
       } catch (e) {
-        Logger.log('❌ ' + member.name + ' でエラー: ' + e.message);
+        Logger.log('❌ ' + result.member.name + ' D14書き込みエラー: ' + e.message);
       }
     }
   }
