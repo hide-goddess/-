@@ -24,7 +24,7 @@ var CS_HYOKA_CONFIG = {
   // 日報管理スプシでメンバー名が入っている列（0始まり: A列=0）
   memberNameColInNippou: 0,
 
-  // メンバー一覧（15名）
+  // メンバー一覧（16名）
   members: [
     { name: '松元陸',    ssId: '1no-0rtLzKWybhJYne41zINUDqWh8xagF6kh5UvifPOs' },
     { name: '平松弥央菜', ssId: '1jeLIm3kRHl5-4b3EwvgrNnwfoAFG036ymmL2BggaRks' },
@@ -35,12 +35,13 @@ var CS_HYOKA_CONFIG = {
     { name: '宇梶知恵',  ssId: '1vLIsuqdOoWrmH-EXdBkUL3XSkcYxl5sEW7NGillEviI' },
     { name: '増子真也子', ssId: '1sbHXZaFivRzliSZEX72rvLFN4EU7bR6ltXbB39lZHVc' },
     { name: '川端歩実',  ssId: '1sLz2fvbPOA1mwwGAUOtn2zOO97XosnbI1jXqJ2n2vlc' },
-    { name: '田中里奈',  ssId: '1LZisdyfMmShNsD0cgZtiLZe7uyUPfDDUrLv6U4h_ra0' },
+    { name: '田中里奈',  ssId: '1wKSMquCgtTtDjd5K-3PCpEkW-EgqZ3LoUT6Ec-nBwGI' }, // ← ssId更新済み
     { name: '山下優花',  ssId: '15PtZ4__btQ2UxpBNPbGdfGd8dKpjenRAT6Mrn3bMVck' },
     { name: '中村八重子', ssId: '1QI8POM4hZAkjjwSeWwamxDmoUx4-zNRD3CTLS0SJyhs' },
     { name: '佐藤大河',  ssId: '1PMGKmUaU2hze5N4Ar7eCcU_uJz-jQThdq_3eGWuI_kw' },
     { name: '青木博資',  ssId: '1PecGIyJDbHy2y1yXIia0Ada1HENe3qY6W-HSppiyUTc' },
     { name: '田畑秀晃',  ssId: '1a7K7N062cHMRTwX8lYpujRGH6b6z1s9bDf--v_DJZ7M' },
+    { name: '田中春奈',  ssId: '★要入力★' }, // ← ssIdを入力してください
   ],
 
   // 対象月設定
@@ -213,8 +214,8 @@ function setRow14_AchievementRate() {
       }
     }
 
-    // ✅ 変更3: 分母を「その月にデータがあるメンバー数」にする（月ごとに記載人数が異なる場合に対応）
-    var finalAvg = validMemberCount > 0 ? totalMemberAvg / validMemberCount : 0;
+    // ✅ 変更3: 分母を常に16名固定（cfg.members.length）にする
+    var finalAvg = cfg.members.length > 0 ? totalMemberAvg / cfg.members.length : 0;
 
     Logger.log(m.ymKey + ' 全体達成率平均: ' + (finalAvg * 100).toFixed(2) + '% （有効: ' + validMemberCount + '/' + cfg.members.length + '名）');
 
