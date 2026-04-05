@@ -104,7 +104,7 @@ function runCurrentMonth() {
 // ============================================================
 function runMonthRange() {
   var fromMonth = 1; // ← 開始月（1〜12）
-  var toMonth   = 3; // ← 終了月（1〜12）
+  var toMonth   = 4; // ← 終了月（1〜12）
 
   const mainSS    = SpreadsheetApp.openById(MAIN_SPREADSHEET_ID);
   const destSheet = mainSS.getSheetByName(ACHIEVEMENT_TAB_NAME);
@@ -497,7 +497,7 @@ function setupTrigger() {
   ScriptApp.newTrigger('autoUpdateMonthlyGoals')
     .timeBased()
     .everyDays(1)
-    .atHour(5)
+    .atHour(4)
     .create();
 
   Logger.log('トリガー設定完了: 毎日 午前5時に実行（毎月1〜10日のみデータ更新）');
