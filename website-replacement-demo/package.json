@@ -1,7 +1,7 @@
 {
   "name": "website-replacement-demo",
   "version": "1.0.0",
-  "description": "既存HPをリプレイスする新HPのデモ画面を生成するツール",
+  "description": "既存HPをリプレイスする新HPのデモ画面を生成するツール (Gemini API)",
   "main": "server.js",
   "type": "module",
   "scripts": {
@@ -9,7 +9,8 @@
     "dev": "node --watch server.js"
   },
   "dependencies": {
-    "@anthropic-ai/sdk": "^0.27.0",
+    "@google/genai": "^1.0.0",
+    "dotenv": "^16.4.5",
     "express": "^4.19.2"
   },
   "engines": {

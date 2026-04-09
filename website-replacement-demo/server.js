@@ -1,5 +1,6 @@
+import "dotenv/config";
 import express from "express";
-import Anthropic from "@anthropic-ai/sdk";
+import { GoogleGenAI } from "@google/genai";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -10,11 +11,15 @@ app.use(express.json({ limit: "2mb" }));
 app.use(express.static(path.join(__dirname, "public")));
 
 const PORT = process.env.PORT || 3000;
-const MODEL = process.env.ANTHROPIC_MODEL || "claude-opus-4-6";
+const MODEL = process.env.GEMINI_MODEL || "gemini-2.5-flash";
 
-const client = new Anthropic({
-  apiKey: process.env.ANTHROPIC_API_KEY,
-});
+if (!process.env.GEMINI_API_KEY) {
+  console.warn(
+    "[warn] GEMINI_API_KEY が未設定です。.env ファイルに設定してください。"
+  );
+}
+
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
 // --- Helpers ---------------------------------------------------------------
 
@@ -63,6 +68,21 @@ function compactHtml(html, maxLength = 60000) {
   return cleaned;
 }
 
+/**
+ * Gemini にテキストプロンプトを投げ、応答テキストを返す。
+ */
+async function generateText(prompt, maxOutputTokens) {
+  const response = await ai.models.generateContent({
+    model: MODEL,
+    contents: prompt,
+    config: {
+      maxOutputTokens,
+      temperature: 0.7,
+    },
+  });
+  return response.text ?? "";
+}
+
 // --- API routes ------------------------------------------------------------
 
 /**
@@ -78,28 +98,18 @@ app.post("/api/analyze-existing", async (req, res) => {
     const html = await fetchUrlContent(existingUrl);
     const compact = compactHtml(html);
 
-    const message = await client.messages.create({
-      model: MODEL,
-      max_tokens: 2000,
-      messages: [
-        {
-          role: "user",
-          content:
-            "あなたはWebサイトのリプレイス提案を行うUI/UXデザイナー兼フロントエンドエンジニアです。\n" +
-            "次のHTMLは、これからリプレイス対象となる既存HPです。\n" +
-            "構成・トーン・主要コンテンツ・課題点を日本語で簡潔に要約してください。\n\n" +
-            `URL: ${existingUrl}\n\nHTML:\n${compact}`,
-        },
-      ],
-    });
+    const prompt =
+      "あなたはWebサイトのリプレイス提案を行うUI/UXデザイナー兼フロントエンドエンジニアです。\n" +
+      "次のHTMLは、これからリプレイス対象となる既存HPです。\n" +
+      "構成・トーン・主要コンテンツ・課題点を日本語で簡潔に要約してください。\n\n" +
+      `URL: ${existingUrl}\n\nHTML:\n${compact}`;
+
+    const summary = await generateText(prompt, 2000);
 
     res.json({
       url: existingUrl,
       rawHtml: compact,
-      summary: message.content
-        .filter((b) => b.type === "text")
-        .map((b) => b.text)
-        .join("\n"),
+      summary,
     });
   } catch (err) {
     console.error(err);
@@ -120,32 +130,22 @@ app.post("/api/analyze-reference", async (req, res) => {
     const html = await fetchUrlContent(referenceUrl);
     const compact = compactHtml(html);
 
-    const message = await client.messages.create({
-      model: MODEL,
-      max_tokens: 2000,
-      messages: [
-        {
-          role: "user",
-          content:
-            "あなたはWebサイトのリプレイス提案を行うUI/UXデザイナーです。\n" +
-            "以下に『既存HPの要約』と『参考にする新規URLのHTML』を示します。\n" +
-            "参考サイトから得られる、既存HPをより良くするための改善アイデアを日本語で列挙してください。\n" +
-            "デザイン・情報設計・CTA・キャッチコピーの観点を含めてください。\n\n" +
-            `■ 既存HP URL: ${existingUrl}\n` +
-            `■ 既存HP 要約:\n${existingSummary || "(未提供)"}\n\n` +
-            `■ 参考新規URL: ${referenceUrl}\n` +
-            `■ 参考HTML:\n${compact}`,
-        },
-      ],
-    });
+    const prompt =
+      "あなたはWebサイトのリプレイス提案を行うUI/UXデザイナーです。\n" +
+      "以下に『既存HPの要約』と『参考にする新規URLのHTML』を示します。\n" +
+      "参考サイトから得られる、既存HPをより良くするための改善アイデアを日本語で列挙してください。\n" +
+      "デザイン・情報設計・CTA・キャッチコピーの観点を含めてください。\n\n" +
+      `■ 既存HP URL: ${existingUrl}\n` +
+      `■ 既存HP 要約:\n${existingSummary || "(未提供)"}\n\n` +
+      `■ 参考新規URL: ${referenceUrl}\n` +
+      `■ 参考HTML:\n${compact}`;
+
+    const improvements = await generateText(prompt, 2000);
 
     res.json({
       url: referenceUrl,
       rawHtml: compact,
-      improvements: message.content
-        .filter((b) => b.type === "text")
-        .map((b) => b.text)
-        .join("\n"),
+      improvements,
     });
   } catch (err) {
     console.error(err);
@@ -173,36 +173,24 @@ app.post("/api/generate-replacement", async (req, res) => {
       return res.status(400).json({ error: "existingHtml が必要です" });
     }
 
-    const message = await client.messages.create({
-      model: MODEL,
-      max_tokens: 8000,
-      messages: [
-        {
-          role: "user",
-          content:
-            "あなたはプロのフロントエンドエンジニアです。\n" +
-            "以下の情報をもとに、既存HPをリプレイスした新しいHPのデモを 1つのHTMLファイルとして生成してください。\n\n" +
-            "要件:\n" +
-            "1. 既存HPの主要コンテンツ・情報を失わないこと\n" +
-            "2. 参考新規URLのデザインやUXを取り入れ、より良くすること\n" +
-            "3. ユーザーからのテキスト指示を最優先で反映すること\n" +
-            "4. 出力は <!DOCTYPE html> から始まる完全なHTML 1ファイル(インラインCSS可、外部依存なし、日本語)\n" +
-            "5. 装飾・説明文は出力せず、HTMLコードのみを返すこと\n\n" +
-            `■ 既存HP URL: ${existingUrl}\n` +
-            `■ 既存HP 要約:\n${existingSummary || "(なし)"}\n\n` +
-            `■ 既存HP HTML(抜粋):\n${(existingHtml || "").slice(0, 20000)}\n\n` +
-            `■ 参考新規URL: ${referenceUrl || "(なし)"}\n` +
-            `■ 参考HTML(抜粋):\n${(referenceHtml || "").slice(0, 20000)}\n\n` +
-            `■ 参考から得た改善案:\n${improvements || "(なし)"}\n\n` +
-            `■ ユーザー指示(最優先):\n${instructions || "(特になし)"}\n`,
-        },
-      ],
-    });
+    const prompt =
+      "あなたはプロのフロントエンドエンジニアです。\n" +
+      "以下の情報をもとに、既存HPをリプレイスした新しいHPのデモを 1つのHTMLファイルとして生成してください。\n\n" +
+      "要件:\n" +
+      "1. 既存HPの主要コンテンツ・情報を失わないこと\n" +
+      "2. 参考新規URLのデザインやUXを取り入れ、より良くすること\n" +
+      "3. ユーザーからのテキスト指示を最優先で反映すること\n" +
+      "4. 出力は <!DOCTYPE html> から始まる完全なHTML 1ファイル(インラインCSS可、外部依存なし、日本語)\n" +
+      "5. 装飾・説明文は出力せず、HTMLコードのみを返すこと\n\n" +
+      `■ 既存HP URL: ${existingUrl}\n` +
+      `■ 既存HP 要約:\n${existingSummary || "(なし)"}\n\n` +
+      `■ 既存HP HTML(抜粋):\n${(existingHtml || "").slice(0, 20000)}\n\n` +
+      `■ 参考新規URL: ${referenceUrl || "(なし)"}\n` +
+      `■ 参考HTML(抜粋):\n${(referenceHtml || "").slice(0, 20000)}\n\n` +
+      `■ 参考から得た改善案:\n${improvements || "(なし)"}\n\n` +
+      `■ ユーザー指示(最優先):\n${instructions || "(特になし)"}\n`;
 
-    const text = message.content
-      .filter((b) => b.type === "text")
-      .map((b) => b.text)
-      .join("\n");
+    const text = await generateText(prompt, 8000);
 
     // ```html ... ``` フェンスが付いた場合は剥がす
     const fenceMatch = text.match(/```(?:html)?\s*([\s\S]*?)```/i);
@@ -217,4 +205,5 @@ app.post("/api/generate-replacement", async (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`Website Replacement Demo → http://localhost:${PORT}`);
+  console.log(`Model: ${MODEL}`);
 });
