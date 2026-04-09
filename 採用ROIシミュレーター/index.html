@@ -117,6 +117,28 @@
     display: block;
     background: #fff;
   }
+  .chart-wrap {
+    position: relative;
+  }
+  .chart-tooltip {
+    position: absolute;
+    pointer-events: none;
+    background: rgba(15, 23, 42, 0.95);
+    color: #fff;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 12px;
+    line-height: 1.5;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+    white-space: nowrap;
+    transform: translate(-50%, -100%);
+    margin-top: -8px;
+    display: none;
+    z-index: 10;
+  }
+  .chart-tooltip .t-title { font-weight: 700; margin-bottom: 2px; color: #fcd34d; }
+  .chart-tooltip .t-row { display: flex; justify-content: space-between; gap: 12px; }
+  .chart-tooltip .t-row span:last-child { font-weight: 600; }
   table {
     width: 100%;
     border-collapse: collapse;
@@ -298,7 +320,10 @@
       <button id="btnFlow" class="active" onclick="setMode('flow')">期間利益</button>
       <button id="btnCum" class="secondary" onclick="setMode('cum')">累計利益</button>
     </div>
-    <canvas id="chart" width="1100" height="420"></canvas>
+    <div class="chart-wrap">
+      <canvas id="chart" width="1100" height="420"></canvas>
+      <div class="chart-tooltip" id="chartTooltip"></div>
+    </div>
   </div>
 
   <!-- 年次テーブル -->
@@ -579,6 +604,9 @@ function renderChart() {
   const slot = pw / n;
   const barW = Math.max(1, Math.min(slot * 0.8, 40));
 
+  // ツールチップ用のヒットボックスを記録
+  state.bars = [];
+
   for (let i = 0; i < n; i++) {
     const v = vals[i];
     const x = ml + slot * i + (slot - barW) / 2;
@@ -593,11 +621,23 @@ function renderChart() {
       fill = v >= 0 ? '#3b82f6' : '#ef4444';
     }
     ctx.fillStyle = fill;
+    let bx, by, bw, bh;
     if (h >= 0) {
-      ctx.fillRect(x, y0, barW, h);
+      bx = x; by = y0; bw = barW; bh = h;
     } else {
-      ctx.fillRect(x, y1, barW, -h);
+      bx = x; by = y1; bw = barW; bh = -h;
     }
+    ctx.fillRect(bx, by, bw, bh);
+    // スロット全体をホバー判定域にする（細いバーでも拾えるように）
+    state.bars.push({
+      slotX: ml + slot * i,
+      slotW: slot,
+      barCX: x + barW / 2,
+      barTop: Math.min(y0, y1),
+      index: i,
+      value: v,
+      label: data[i].label,
+    });
   }
 
   // 投資回収マーカー（月次表示かつ payback がある場合）
@@ -771,10 +811,87 @@ function updateTierNumbers() {
   });
 }
 
+/* =========================================================
+   グラフのツールチップ
+   ========================================================= */
+
+function handleChartHover(e) {
+  const canvas = document.getElementById('chart');
+  const tooltip = document.getElementById('chartTooltip');
+  if (!state.bars || state.bars.length === 0) { tooltip.style.display = 'none'; return; }
+  const rect = canvas.getBoundingClientRect();
+  const x = e.clientX - rect.left;
+  const y = e.clientY - rect.top;
+  // CSS座標にスケール
+  const scaleX = canvas.clientWidth / (canvas.clientWidth || 1);
+  const mx = x * scaleX;
+
+  // ヒットしたスロットを探す
+  let hit = null;
+  for (const b of state.bars) {
+    if (mx >= b.slotX && mx < b.slotX + b.slotW) { hit = b; break; }
+  }
+  if (!hit) { tooltip.style.display = 'none'; return; }
+
+  // 元データから詳細を取得
+  const src = (state.view === 'month')
+    ? state.months[hit.index]
+    : state.years[hit.index];
+  if (!src) { tooltip.style.display = 'none'; return; }
+
+  const titleLbl = (state.view === 'month')
+    ? ((src.m === 0 ? '採用時（0ヶ月）' : src.m + 'ヶ月目'))
+    : (src.y + '年目');
+  const modeLbl = state.mode === 'cum' ? '累計利益' : '期間利益';
+  const mainVal = state.mode === 'cum' ? src.cum : src.profit;
+  const color = mainVal >= 0 ? '#34d399' : '#f87171';
+
+  let html = `<div class="t-title">${titleLbl}</div>`;
+  html += `<div class="t-row"><span>${modeLbl}</span><span style="color:${color}">${fmtYenRaw(mainVal)}円</span></div>`;
+  html += `<div class="t-row"><span>売上</span><span>${fmtYenRaw(src.revenue)}円</span></div>`;
+  html += `<div class="t-row"><span>人件費</span><span>${fmtYenRaw(src.labor)}円</span></div>`;
+  if (src.hire) html += `<div class="t-row"><span>採用費</span><span>${fmtYenRaw(src.hire)}円</span></div>`;
+  if (state.view === 'month') {
+    html += `<div class="t-row"><span>累計</span><span>${fmtYenRaw(src.cum)}円</span></div>`;
+    if (src.tierLevel && src.tierLevel !== '-') {
+      html += `<div class="t-row"><span>区分</span><span>${src.tierLevel}</span></div>`;
+    }
+  } else {
+    html += `<div class="t-row"><span>累計（年度末）</span><span>${fmtYenRaw(src.cum)}円</span></div>`;
+  }
+  tooltip.innerHTML = html;
+  tooltip.style.display = 'block';
+
+  // 位置決定：バーの中心上部に。右端でのはみ出しを補正
+  const wrapRect = canvas.parentElement.getBoundingClientRect();
+  let left = hit.barCX;
+  const top = Math.max(0, hit.barTop);
+  tooltip.style.left = left + 'px';
+  tooltip.style.top = top + 'px';
+
+  // 画面端の補正
+  const tRect = tooltip.getBoundingClientRect();
+  if (tRect.left < wrapRect.left + 4) {
+    tooltip.style.transform = 'translate(0, -100%)';
+    tooltip.style.left = '4px';
+  } else if (tRect.right > wrapRect.right - 4) {
+    tooltip.style.transform = 'translate(-100%, -100%)';
+  } else {
+    tooltip.style.transform = 'translate(-50%, -100%)';
+  }
+}
+
+function handleChartLeave() {
+  document.getElementById('chartTooltip').style.display = 'none';
+}
+
 // 初期描画
 window.addEventListener('load', () => {
   buildTierList(DEFAULT_TIERS);
   runSim();
+  const canvas = document.getElementById('chart');
+  canvas.addEventListener('mousemove', handleChartHover);
+  canvas.addEventListener('mouseleave', handleChartLeave);
 });
 window.addEventListener('resize', () => { if (state.months.length) renderChart(); });
 </script>
