@@ -1,0 +1,631 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>未経験作業員 採用ROIシミュレーター</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Helvetica Neue", "Hiragino Sans", "Hiragino Kaku Gothic ProN", "Noto Sans JP", Meiryo, sans-serif;
+    background: #f4f6fa;
+    color: #1f2937;
+    margin: 0;
+    padding: 20px;
+    line-height: 1.6;
+  }
+  .wrap { max-width: 1200px; margin: 0 auto; }
+  h1 {
+    font-size: 22px;
+    margin: 0 0 6px;
+    color: #0f172a;
+  }
+  .subtitle { color: #64748b; font-size: 13px; margin-bottom: 20px; }
+  .card {
+    background: #fff;
+    border-radius: 12px;
+    padding: 20px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.05), 0 1px 2px rgba(0,0,0,0.03);
+    margin-bottom: 18px;
+  }
+  .card h2 {
+    font-size: 16px;
+    margin: 0 0 14px;
+    padding-bottom: 8px;
+    border-bottom: 2px solid #e2e8f0;
+    color: #0f172a;
+  }
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 14px;
+  }
+  label {
+    display: block;
+    font-size: 12px;
+    font-weight: 600;
+    color: #475569;
+    margin-bottom: 4px;
+  }
+  input[type="number"], select {
+    width: 100%;
+    padding: 9px 10px;
+    border: 1px solid #cbd5e1;
+    border-radius: 8px;
+    font-size: 14px;
+    background: #fff;
+    color: #0f172a;
+  }
+  input[type="number"]:focus, select:focus {
+    outline: none;
+    border-color: #3b82f6;
+    box-shadow: 0 0 0 3px rgba(59,130,246,0.15);
+  }
+  .hint { font-size: 11px; color: #94a3b8; margin-top: 3px; }
+  .btn-row { margin-top: 16px; display: flex; gap: 10px; flex-wrap: wrap; }
+  button {
+    background: #2563eb;
+    color: #fff;
+    border: none;
+    padding: 10px 22px;
+    border-radius: 8px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  button:hover { background: #1d4ed8; }
+  button.secondary {
+    background: #e2e8f0;
+    color: #334155;
+  }
+  button.secondary:hover { background: #cbd5e1; }
+  button.active {
+    background: #0f172a;
+    color: #fff;
+  }
+  .summary {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 14px;
+  }
+  .kpi {
+    background: linear-gradient(135deg, #f8fafc 0%, #eef2f7 100%);
+    border: 1px solid #e2e8f0;
+    border-radius: 10px;
+    padding: 14px 16px;
+  }
+  .kpi .label { font-size: 12px; color: #64748b; font-weight: 600; margin-bottom: 4px; }
+  .kpi .value { font-size: 22px; font-weight: 700; color: #0f172a; }
+  .kpi .unit { font-size: 12px; color: #64748b; margin-left: 3px; }
+  .kpi.ok .value { color: #059669; }
+  .kpi.warn .value { color: #dc2626; }
+  .kpi.accent .value { color: #2563eb; }
+  .chart-controls {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+    flex-wrap: wrap;
+  }
+  .chart-controls button {
+    padding: 7px 14px;
+    font-size: 12px;
+  }
+  canvas {
+    width: 100%;
+    height: auto;
+    display: block;
+    background: #fff;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 12px;
+  }
+  th, td {
+    padding: 8px 10px;
+    text-align: right;
+    border-bottom: 1px solid #e2e8f0;
+  }
+  th {
+    background: #f1f5f9;
+    color: #475569;
+    font-weight: 600;
+    position: sticky;
+    top: 0;
+  }
+  th:first-child, td:first-child { text-align: left; }
+  .table-scroll { max-height: 320px; overflow-y: auto; border: 1px solid #e2e8f0; border-radius: 8px; }
+  tr.payback td { background: #fef3c7; font-weight: 600; }
+  .formula {
+    background: #f8fafc;
+    border-left: 3px solid #2563eb;
+    padding: 10px 14px;
+    font-size: 12px;
+    color: #475569;
+    border-radius: 4px;
+    margin-top: 10px;
+  }
+  .formula code { background: #e2e8f0; padding: 1px 5px; border-radius: 3px; font-family: inherit; }
+  @media (max-width: 640px) {
+    body { padding: 12px; }
+    .kpi .value { font-size: 18px; }
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <h1>未経験作業員 採用ROIシミュレーター</h1>
+  <p class="subtitle">1名採用 → 投資回収月数と10年間の売上・利益を試算</p>
+
+  <!-- 入力フォーム -->
+  <div class="card">
+    <h2>入力項目</h2>
+    <div class="grid">
+      <div>
+        <label>期間（年）</label>
+        <input type="number" id="years" value="10" min="1" max="30" step="1">
+        <div class="hint">シミュレーション期間</div>
+      </div>
+      <div>
+        <label>経験区分</label>
+        <select id="experience">
+          <option value="inexperienced" selected>未経験</option>
+          <option value="experienced">経験者</option>
+        </select>
+        <div class="hint">生産性の立ち上がりに影響</div>
+      </div>
+      <div>
+        <label>現場単価（円 / 日）</label>
+        <input type="number" id="unitPrice" value="25000" min="0" step="500">
+        <div class="hint">1日あたりの売上</div>
+      </div>
+      <div>
+        <label>給料（円 / 月）</label>
+        <input type="number" id="salary" value="220000" min="0" step="1000">
+        <div class="hint">月額給与</div>
+      </div>
+      <div>
+        <label>稼働日（日 / 月）</label>
+        <input type="number" id="workDays" value="20" min="0" max="31" step="1">
+        <div class="hint">1ヶ月の稼働日数</div>
+      </div>
+      <div>
+        <label>採用コスト（円）</label>
+        <input type="number" id="hireCost" value="1500000" min="0" step="10000">
+        <div class="hint">採用時の初期費用</div>
+      </div>
+      <div>
+        <label>法定福利費率（%）</label>
+        <input type="number" id="welfareRate" value="35" min="0" max="100" step="1">
+        <div class="hint">給料に対する比率</div>
+      </div>
+    </div>
+    <div class="formula">
+      <strong>計算式：</strong>
+      月次利益 = <code>（現場単価 × 稼働日 × 稼働率）</code> − <code>（給料 ×（1 + 法定福利費率））</code><br>
+      採用月（0ヶ月目）は別途 <code>採用コスト</code> を差し引きます。<br>
+      未経験者の稼働率：0–2ヶ月=0%（研修）、3–5ヶ月=50%、6–11ヶ月=80%、12ヶ月以降=100%<br>
+      経験者の稼働率：1ヶ月目から100%
+    </div>
+    <div class="btn-row">
+      <button onclick="runSim()">シミュレーション実行</button>
+      <button class="secondary" onclick="resetForm()">リセット</button>
+    </div>
+  </div>
+
+  <!-- KPIサマリー -->
+  <div class="card">
+    <h2>シミュレーション結果</h2>
+    <div class="summary" id="summary">
+      <div class="kpi accent">
+        <div class="label">投資回収月数</div>
+        <div class="value" id="kpiPayback">-</div>
+      </div>
+      <div class="kpi warn">
+        <div class="label">投資回収までの総額費用</div>
+        <div class="value" id="kpiMaxLoss">-</div>
+      </div>
+      <div class="kpi accent">
+        <div class="label">10年累計売上</div>
+        <div class="value" id="kpiRevenue">-</div>
+      </div>
+      <div class="kpi ok">
+        <div class="label">10年累計利益</div>
+        <div class="value" id="kpiProfit">-</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- チャート -->
+  <div class="card">
+    <h2>利益推移グラフ</h2>
+    <div class="chart-controls">
+      <button id="btnMonth" class="active" onclick="setView('month')">月次</button>
+      <button id="btnYear" class="secondary" onclick="setView('year')">年次</button>
+      <span style="flex:1"></span>
+      <button id="btnFlow" class="active" onclick="setMode('flow')">期間利益</button>
+      <button id="btnCum" class="secondary" onclick="setMode('cum')">累計利益</button>
+    </div>
+    <canvas id="chart" width="1100" height="420"></canvas>
+  </div>
+
+  <!-- 年次テーブル -->
+  <div class="card">
+    <h2>年次内訳</h2>
+    <div class="table-scroll">
+      <table id="yearTable">
+        <thead>
+          <tr>
+            <th>年</th>
+            <th>売上（円）</th>
+            <th>人件費（円）</th>
+            <th>採用費（円）</th>
+            <th>利益（円）</th>
+            <th>累計利益（円）</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+/* =========================================================
+   ROIシミュレーター・ロジック
+   ========================================================= */
+
+let state = {
+  months: [],      // 月毎の詳細 {m, revenue, labor, hire, profit, cum}
+  years: [],       // 年毎の集計
+  view: 'month',   // 'month' | 'year'
+  mode: 'flow',    // 'flow' | 'cum'
+  payback: null,
+  maxLoss: 0,
+  totalRevenue: 0,
+  totalProfit: 0,
+  years10Revenue: 0,
+  years10Profit: 0,
+};
+
+function getInputs() {
+  return {
+    years: Math.max(1, parseInt(document.getElementById('years').value) || 10),
+    experience: document.getElementById('experience').value,
+    unitPrice: Math.max(0, parseFloat(document.getElementById('unitPrice').value) || 0),
+    salary: Math.max(0, parseFloat(document.getElementById('salary').value) || 0),
+    workDays: Math.max(0, parseFloat(document.getElementById('workDays').value) || 0),
+    hireCost: Math.max(0, parseFloat(document.getElementById('hireCost').value) || 0),
+    welfareRate: Math.max(0, parseFloat(document.getElementById('welfareRate').value) || 0) / 100,
+  };
+}
+
+// 稼働率カーブ（採用月を0として、m ヶ月後）
+function productivity(m, experience) {
+  if (experience === 'experienced') {
+    return m === 0 ? 0 : 1.0; // 採用月は稼働なし、翌月から満働
+  }
+  // 未経験
+  if (m <= 2) return 0;         // 0〜2ヶ月目：研修
+  if (m <= 5) return 0.5;       // 3〜5ヶ月目：50%
+  if (m <= 11) return 0.8;      // 6〜11ヶ月目：80%
+  return 1.0;                    // 12ヶ月目以降：満働
+}
+
+function simulate() {
+  const p = getInputs();
+  const totalMonths = p.years * 12;
+  const months = [];
+  const years = [];
+
+  let cum = 0;
+  let payback = null;
+  let maxLoss = 0;
+  let totalRevenue = 0;
+
+  for (let m = 0; m <= totalMonths; m++) {
+    const rate = productivity(m, p.experience);
+    const revenue = p.unitPrice * p.workDays * rate;
+    const labor = p.salary * (1 + p.welfareRate);
+    const hire = (m === 0) ? p.hireCost : 0;
+    // 採用月は稼働0で人件費も発生しない想定（入社初日扱い）→ m===0 は hire のみ
+    const monthLabor = (m === 0) ? 0 : labor;
+    const profit = revenue - monthLabor - hire;
+    cum += profit;
+    totalRevenue += revenue;
+
+    if (cum < maxLoss) maxLoss = cum;
+    if (payback === null && cum >= 0 && m > 0) payback = m;
+
+    months.push({ m, revenue, labor: monthLabor, hire, profit, cum });
+  }
+
+  // 年次集計（1年目 = 月1〜12, 2年目 = 月13〜24 ...）
+  // 採用月(0)は1年目に含める
+  for (let y = 1; y <= p.years; y++) {
+    const startM = (y === 1) ? 0 : (y - 1) * 12 + 1;
+    const endM = y * 12;
+    let rev = 0, lab = 0, hir = 0, prof = 0, lastCum = 0;
+    for (let m = startM; m <= endM; m++) {
+      if (!months[m]) continue;
+      rev += months[m].revenue;
+      lab += months[m].labor;
+      hir += months[m].hire;
+      prof += months[m].profit;
+      lastCum = months[m].cum;
+    }
+    years.push({ y, revenue: rev, labor: lab, hire: hir, profit: prof, cum: lastCum });
+  }
+
+  // 10年分のサマリー（期間が10年未満なら期間全体）
+  const clip = Math.min(10, p.years);
+  let y10Rev = 0, y10Prof = 0;
+  for (let i = 0; i < clip; i++) {
+    y10Rev += years[i].revenue;
+    y10Prof += years[i].profit;
+  }
+
+  state.months = months;
+  state.years = years;
+  state.payback = payback;
+  state.maxLoss = Math.abs(maxLoss);
+  state.totalRevenue = totalRevenue;
+  state.totalProfit = cum;
+  state.years10Revenue = y10Rev;
+  state.years10Profit = y10Prof;
+}
+
+/* =========================================================
+   フォーマッタ
+   ========================================================= */
+
+function fmtYen(n) {
+  if (!isFinite(n)) return '-';
+  const abs = Math.abs(n);
+  let s;
+  if (abs >= 1e8) s = (n / 1e8).toFixed(2) + '億円';
+  else if (abs >= 1e4) s = (n / 1e4).toFixed(0) + '万円';
+  else s = Math.round(n).toLocaleString() + '円';
+  return s;
+}
+function fmtYenRaw(n) {
+  return Math.round(n).toLocaleString();
+}
+
+/* =========================================================
+   KPI・テーブル描画
+   ========================================================= */
+
+function renderKpi() {
+  const pb = state.payback;
+  document.getElementById('kpiPayback').innerHTML =
+    (pb === null)
+      ? '<span style="color:#dc2626">未達</span>'
+      : `${pb}<span class="unit">ヶ月<br>（約${(pb/12).toFixed(1)}年）</span>`;
+  document.getElementById('kpiMaxLoss').innerHTML =
+    fmtYen(state.maxLoss);
+  document.getElementById('kpiRevenue').innerHTML =
+    fmtYen(state.years10Revenue);
+  document.getElementById('kpiProfit').innerHTML =
+    fmtYen(state.years10Profit);
+}
+
+function renderTable() {
+  const tbody = document.querySelector('#yearTable tbody');
+  tbody.innerHTML = '';
+  state.years.forEach(y => {
+    const tr = document.createElement('tr');
+    tr.innerHTML =
+      `<td>${y.y}年目</td>` +
+      `<td>${fmtYenRaw(y.revenue)}</td>` +
+      `<td>${fmtYenRaw(y.labor)}</td>` +
+      `<td>${fmtYenRaw(y.hire)}</td>` +
+      `<td style="color:${y.profit>=0?'#059669':'#dc2626'}">${fmtYenRaw(y.profit)}</td>` +
+      `<td style="color:${y.cum>=0?'#059669':'#dc2626'}">${fmtYenRaw(y.cum)}</td>`;
+    tbody.appendChild(tr);
+  });
+}
+
+/* =========================================================
+   Canvas 棒グラフ描画（オフライン対応・外部ライブラリ不使用）
+   ========================================================= */
+
+function renderChart() {
+  const canvas = document.getElementById('chart');
+  const ctx = canvas.getContext('2d');
+  // 高DPI対応
+  const dpr = window.devicePixelRatio || 1;
+  const cssW = canvas.clientWidth || 1100;
+  const cssH = 420;
+  canvas.style.height = cssH + 'px';
+  canvas.width = cssW * dpr;
+  canvas.height = cssH * dpr;
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  ctx.clearRect(0, 0, cssW, cssH);
+
+  // データ取得
+  const data = (state.view === 'month')
+    ? state.months.map(x => ({ label: x.m, flow: x.profit, cum: x.cum }))
+    : state.years.map(x => ({ label: x.y, flow: x.profit, cum: x.cum }));
+
+  if (data.length === 0) return;
+
+  const vals = data.map(d => state.mode === 'cum' ? d.cum : d.flow);
+  let vMax = Math.max(0, ...vals);
+  let vMin = Math.min(0, ...vals);
+  if (vMax === vMin) { vMax += 1; vMin -= 1; }
+  // 余白を与える
+  const pad = (vMax - vMin) * 0.08;
+  vMax += pad; vMin -= pad;
+
+  // 描画領域
+  const ml = 72, mr = 20, mt = 20, mb = 48;
+  const pw = cssW - ml - mr;
+  const ph = cssH - mt - mb;
+
+  // Y軸グリッド
+  const ticks = 6;
+  ctx.strokeStyle = '#e5e7eb';
+  ctx.fillStyle = '#6b7280';
+  ctx.font = '11px -apple-system, "Hiragino Sans", sans-serif';
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= ticks; i++) {
+    const v = vMin + (vMax - vMin) * i / ticks;
+    const y = mt + ph - ((v - vMin) / (vMax - vMin)) * ph;
+    ctx.beginPath();
+    ctx.moveTo(ml, y);
+    ctx.lineTo(ml + pw, y);
+    ctx.stroke();
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(fmtYenAxis(v), ml - 6, y);
+  }
+
+  // ゼロライン強調
+  const zeroY = mt + ph - ((0 - vMin) / (vMax - vMin)) * ph;
+  ctx.strokeStyle = '#94a3b8';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(ml, zeroY);
+  ctx.lineTo(ml + pw, zeroY);
+  ctx.stroke();
+
+  // バー描画
+  const n = data.length;
+  const slot = pw / n;
+  const barW = Math.max(1, Math.min(slot * 0.8, 40));
+
+  for (let i = 0; i < n; i++) {
+    const v = vals[i];
+    const x = ml + slot * i + (slot - barW) / 2;
+    const y0 = zeroY;
+    const y1 = mt + ph - ((v - vMin) / (vMax - vMin)) * ph;
+    const h = y1 - y0;
+    // 色
+    let fill;
+    if (state.mode === 'cum') {
+      fill = v >= 0 ? '#10b981' : '#ef4444';
+    } else {
+      fill = v >= 0 ? '#3b82f6' : '#ef4444';
+    }
+    ctx.fillStyle = fill;
+    if (h >= 0) {
+      ctx.fillRect(x, y0, barW, h);
+    } else {
+      ctx.fillRect(x, y1, barW, -h);
+    }
+  }
+
+  // 投資回収マーカー（月次表示かつ payback がある場合）
+  if (state.payback !== null) {
+    let markerIdx = -1;
+    if (state.view === 'month') {
+      markerIdx = state.payback;
+    } else {
+      markerIdx = Math.ceil(state.payback / 12) - 1;
+    }
+    if (markerIdx >= 0 && markerIdx < n) {
+      const mx = ml + slot * markerIdx + slot / 2;
+      ctx.strokeStyle = '#f59e0b';
+      ctx.lineWidth = 2;
+      ctx.setLineDash([5, 4]);
+      ctx.beginPath();
+      ctx.moveTo(mx, mt);
+      ctx.lineTo(mx, mt + ph);
+      ctx.stroke();
+      ctx.setLineDash([]);
+      // ラベル
+      ctx.fillStyle = '#f59e0b';
+      ctx.font = 'bold 11px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      const lbl = '回収: ' + state.payback + 'ヶ月';
+      ctx.fillText(lbl, mx, mt + 2);
+    }
+  }
+
+  // X軸ラベル
+  ctx.fillStyle = '#6b7280';
+  ctx.font = '11px sans-serif';
+  ctx.textAlign = 'center';
+  ctx.textBaseline = 'top';
+  const xLabelY = mt + ph + 6;
+  let step = 1;
+  if (state.view === 'month') {
+    if (n > 60) step = 12;
+    else if (n > 24) step = 6;
+    else if (n > 12) step = 3;
+  }
+  for (let i = 0; i < n; i++) {
+    if (i % step !== 0 && i !== n - 1) continue;
+    const cx = ml + slot * i + slot / 2;
+    const lbl = (state.view === 'month') ? (data[i].label + 'ヶ月') : (data[i].label + '年');
+    ctx.fillText(lbl, cx, xLabelY);
+  }
+
+  // 軸タイトル
+  ctx.fillStyle = '#334155';
+  ctx.font = 'bold 11px sans-serif';
+  ctx.textAlign = 'left';
+  ctx.textBaseline = 'top';
+  const modeLbl = state.mode === 'cum' ? '累計利益' : '期間利益';
+  ctx.fillText('利益（円） - ' + modeLbl, ml, 2);
+  ctx.textAlign = 'right';
+  ctx.fillText((state.view === 'month' ? '月' : '年'), ml + pw, cssH - 14);
+}
+
+function fmtYenAxis(n) {
+  const abs = Math.abs(n);
+  if (abs >= 1e8) return (n / 1e8).toFixed(1) + '億';
+  if (abs >= 1e7) return (n / 1e4).toFixed(0) + '万';
+  if (abs >= 1e4) return (n / 1e4).toFixed(0) + '万';
+  return Math.round(n).toLocaleString();
+}
+
+/* =========================================================
+   UI ハンドラ
+   ========================================================= */
+
+function runSim() {
+  simulate();
+  renderKpi();
+  renderTable();
+  renderChart();
+}
+
+function setView(v) {
+  state.view = v;
+  document.getElementById('btnMonth').classList.toggle('active', v === 'month');
+  document.getElementById('btnMonth').classList.toggle('secondary', v !== 'month');
+  document.getElementById('btnYear').classList.toggle('active', v === 'year');
+  document.getElementById('btnYear').classList.toggle('secondary', v !== 'year');
+  renderChart();
+}
+
+function setMode(m) {
+  state.mode = m;
+  document.getElementById('btnFlow').classList.toggle('active', m === 'flow');
+  document.getElementById('btnFlow').classList.toggle('secondary', m !== 'flow');
+  document.getElementById('btnCum').classList.toggle('active', m === 'cum');
+  document.getElementById('btnCum').classList.toggle('secondary', m !== 'cum');
+  renderChart();
+}
+
+function resetForm() {
+  document.getElementById('years').value = 10;
+  document.getElementById('experience').value = 'inexperienced';
+  document.getElementById('unitPrice').value = 25000;
+  document.getElementById('salary').value = 220000;
+  document.getElementById('workDays').value = 20;
+  document.getElementById('hireCost').value = 1500000;
+  document.getElementById('welfareRate').value = 35;
+  runSim();
+}
+
+// 初期描画
+window.addEventListener('load', runSim);
+window.addEventListener('resize', () => { if (state.months.length) renderChart(); });
+</script>
+</body>
+</html>
