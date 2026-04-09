@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>HPリプレイスデモ生成ツール</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <header class="app-header">
+    <h1>HPリプレイスデモ生成ツール</h1>
+    <p>既存HPを読み込み、参考URLとテキスト指示をもとにリプレイス後のデモ画面を生成します。</p>
+  </header>
+
+  <main class="app-main">
+    <section class="form-panel">
+      <form id="demo-form">
+        <fieldset class="step">
+          <legend><span class="step-num">1</span> 既存HPのURL</legend>
+          <p class="hint">リプレイス対象となる現行HPのURLを入力してください。</p>
+          <input
+            type="url"
+            id="existingUrl"
+            name="existingUrl"
+            placeholder="https://example.com"
+            required
+          />
+          <button type="button" id="btn-analyze-existing">既存HPを読み込む</button>
+          <div class="result" id="existing-result"></div>
+        </fieldset>
+
+        <fieldset class="step">
+          <legend><span class="step-num">2</span> 参考にする新規URL</legend>
+          <p class="hint">既存HPを改善するために参考にしたいサイトのURLを入力してください。</p>
+          <input
+            type="url"
+            id="referenceUrl"
+            name="referenceUrl"
+            placeholder="https://reference-site.example.com"
+          />
+          <button type="button" id="btn-analyze-reference">参考URLを読み込む</button>
+          <div class="result" id="reference-result"></div>
+        </fieldset>
+
+        <fieldset class="step">
+          <legend><span class="step-num">3</span> テキスト指示</legend>
+          <p class="hint">
+            リプレイス時に反映したい指示(トーン・追加したい情報・デザイン要望など)を自由に記入してください。
+          </p>
+          <textarea
+            id="instructions"
+            name="instructions"
+            rows="6"
+            placeholder="例: ヒーローセクションをより強く訴求する。配色は紺と白ベース。問い合わせCTAを上部に固定。"
+          ></textarea>
+        </fieldset>
+
+        <div class="actions">
+          <button type="submit" id="btn-generate" class="primary">
+            リプレイスデモを生成する
+          </button>
+        </div>
+      </form>
+    </section>
+
+    <section class="preview-panel">
+      <div class="preview-header">
+        <h2>プレビュー</h2>
+        <div class="preview-actions">
+          <button type="button" id="btn-download" disabled>HTMLをダウンロード</button>
+          <button type="button" id="btn-open-new" disabled>新規タブで開く</button>
+        </div>
+      </div>
+      <div id="status" class="status"></div>
+      <iframe id="preview" title="生成されたHPのプレビュー"></iframe>
+    </section>
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>

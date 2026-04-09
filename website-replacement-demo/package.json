@@ -1,0 +1,18 @@
+{
+  "name": "website-replacement-demo",
+  "version": "1.0.0",
+  "description": "既存HPをリプレイスする新HPのデモ画面を生成するツール",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.27.0",
+    "express": "^4.19.2"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
