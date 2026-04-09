@@ -334,11 +334,30 @@
         <thead>
           <tr>
             <th>年</th>
-            <th>売上（円）</th>
-            <th>人件費（円）</th>
-            <th>採用費（円）</th>
-            <th>利益（円）</th>
-            <th>累計利益（円）</th>
+            <th>売上(円)</th>
+            <th>人件費(円)</th>
+            <th>採用費(円)</th>
+            <th>利益(円)</th>
+            <th>累計利益(円)</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <!-- 投資回収までの月次内訳 -->
+    <h2 style="margin-top:20px">投資回収までの月次内訳 <span id="monthTableCaption" style="font-size:12px; color:#64748b; font-weight:400"></span></h2>
+    <div class="table-scroll">
+      <table id="monthTable">
+        <thead>
+          <tr>
+            <th>月</th>
+            <th>経験区分</th>
+            <th>売上(円)</th>
+            <th>人件費(円)</th>
+            <th>採用費(円)</th>
+            <th>利益(円)</th>
+            <th>累計利益(円)</th>
           </tr>
         </thead>
         <tbody></tbody>
@@ -533,6 +552,34 @@ function renderTable() {
       `<td style="color:${y.cum>=0?'#059669':'#dc2626'}">${fmtYenRaw(y.cum)}</td>`;
     tbody.appendChild(tr);
   });
+
+  // 投資回収までの月次内訳
+  const mtBody = document.querySelector('#monthTable tbody');
+  const caption = document.getElementById('monthTableCaption');
+  mtBody.innerHTML = '';
+  const pb = state.payback;
+  // 回収済みならその月まで、未達なら全期間を表示
+  const endIdx = (pb !== null)
+    ? Math.min(pb, state.months.length - 1)
+    : state.months.length - 1;
+  caption.textContent = (pb !== null)
+    ? `（採用月〜 ${pb}ヶ月目：投資回収完了）`
+    : '（期間内に投資回収未達のため全期間を表示）';
+  for (let i = 0; i <= endIdx; i++) {
+    const m = state.months[i];
+    const tr = document.createElement('tr');
+    if (pb !== null && m.m === pb) tr.className = 'payback';
+    const mLabel = (m.m === 0) ? '採用時 (0ヶ月)' : `${m.m}ヶ月目`;
+    tr.innerHTML =
+      `<td>${mLabel}</td>` +
+      `<td style="text-align:left">${m.tierLevel || '-'}</td>` +
+      `<td>${fmtYenRaw(m.revenue)}</td>` +
+      `<td>${fmtYenRaw(m.labor)}</td>` +
+      `<td>${fmtYenRaw(m.hire)}</td>` +
+      `<td style="color:${m.profit>=0?'#059669':'#dc2626'}">${fmtYenRaw(m.profit)}</td>` +
+      `<td style="color:${m.cum>=0?'#059669':'#dc2626'}">${fmtYenRaw(m.cum)}</td>`;
+    mtBody.appendChild(tr);
+  }
 }
 
 /* =========================================================
