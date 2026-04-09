@@ -147,6 +147,62 @@
     margin-top: 10px;
   }
   .formula code { background: #e2e8f0; padding: 1px 5px; border-radius: 3px; font-family: inherit; }
+  .tier-section { margin-top: 18px; }
+  .tier-section .tier-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 10px;
+  }
+  .tier-section .tier-head h3 {
+    margin: 0;
+    font-size: 13px;
+    font-weight: 700;
+    color: #334155;
+  }
+  .tier-row {
+    display: grid;
+    grid-template-columns: 1.4fr 0.8fr 1fr 1fr auto;
+    gap: 10px;
+    align-items: end;
+    padding: 10px;
+    margin-bottom: 8px;
+    background: #f8fafc;
+    border: 1px solid #e2e8f0;
+    border-radius: 8px;
+  }
+  .tier-row .tier-num {
+    font-size: 11px;
+    color: #94a3b8;
+    font-weight: 700;
+    margin-bottom: 2px;
+  }
+  .btn-add {
+    background: #10b981;
+    color: #fff;
+    padding: 7px 14px;
+    font-size: 12px;
+    border-radius: 6px;
+  }
+  .btn-add:hover { background: #059669; }
+  .btn-remove {
+    background: #ef4444;
+    color: #fff;
+    padding: 7px 10px;
+    font-size: 12px;
+    border-radius: 6px;
+    height: 38px;
+  }
+  .btn-remove:hover { background: #dc2626; }
+  .btn-remove:disabled {
+    background: #cbd5e1;
+    cursor: not-allowed;
+  }
+  @media (max-width: 720px) {
+    .tier-row {
+      grid-template-columns: 1fr 1fr;
+    }
+  }
   @media (max-width: 640px) {
     body { padding: 12px; }
     .kpi .value { font-size: 18px; }
@@ -161,29 +217,12 @@
   <!-- 入力フォーム -->
   <div class="card">
     <h2>入力項目</h2>
+    <!-- 一段目: 期間・稼働日・採用費・法定福利 -->
     <div class="grid">
       <div>
         <label>期間（年）</label>
         <input type="number" id="years" value="10" min="1" max="30" step="1">
         <div class="hint">シミュレーション期間</div>
-      </div>
-      <div>
-        <label>経験区分</label>
-        <select id="experience">
-          <option value="inexperienced" selected>未経験</option>
-          <option value="experienced">経験者</option>
-        </select>
-        <div class="hint">生産性の立ち上がりに影響</div>
-      </div>
-      <div>
-        <label>現場単価（円 / 日）</label>
-        <input type="number" id="unitPrice" value="25000" min="0" step="500">
-        <div class="hint">1日あたりの売上</div>
-      </div>
-      <div>
-        <label>給料（円 / 月）</label>
-        <input type="number" id="salary" value="220000" min="0" step="1000">
-        <div class="hint">月額給与</div>
       </div>
       <div>
         <label>稼働日（日 / 月）</label>
@@ -201,12 +240,24 @@
         <div class="hint">給料に対する比率</div>
       </div>
     </div>
+
+    <!-- 二段目: 経験区分・現場単価・給料（+で追加可能） -->
+    <div class="tier-section">
+      <div class="tier-head">
+        <h3>経験区分（ステージ）</h3>
+        <button class="btn-add" onclick="addTier()">＋ 経験区分を追加</button>
+      </div>
+      <div id="tierList"></div>
+      <div class="hint" style="margin-top:6px">
+        上から順にステージが進みます。<strong>継続月数</strong> の合計が期間を超えた分は打ち切り、足りない場合は最後の区分が継続します。
+      </div>
+    </div>
+
     <div class="formula">
       <strong>計算式：</strong>
-      月次利益 = <code>（現場単価 × 稼働日 × 稼働率）</code> − <code>（給料 ×（1 + 法定福利費率））</code><br>
-      採用月（0ヶ月目）は別途 <code>採用コスト</code> を差し引きます。<br>
-      未経験者の稼働率：0–2ヶ月=0%（研修）、3–5ヶ月=50%、6–11ヶ月=80%、12ヶ月以降=100%<br>
-      経験者の稼働率：1ヶ月目から100%
+      月次利益 = <code>（現場単価 × 稼働日）</code> − <code>（給料 ×（1 + 法定福利費率））</code><br>
+      採用月（0ヶ月目）は別途 <code>採用コスト</code> を差し引きます（稼働なし）。<br>
+      月1以降は経験区分の順にステージが進み、その時点の現場単価・給料で計算します。
     </div>
     <div class="btn-row">
       <button onclick="runSim()">シミュレーション実行</button>
@@ -289,28 +340,52 @@ let state = {
   years10Profit: 0,
 };
 
+// 経験区分オプション
+const TIER_OPTIONS = ['見習い', '手元作業員', '作業員', '責任者・リーダー候補', '職人'];
+
+// 初期ステージ構成（デフォルト）
+const DEFAULT_TIERS = [
+  { level: '見習い',              duration: 6,  unitPrice: 12000, salary: 180000 },
+  { level: '手元作業員',          duration: 12, unitPrice: 18000, salary: 210000 },
+  { level: '作業員',              duration: 24, unitPrice: 25000, salary: 260000 },
+  { level: '責任者・リーダー候補', duration: 36, unitPrice: 32000, salary: 320000 },
+  { level: '職人',                duration: 42, unitPrice: 40000, salary: 380000 },
+];
+
 function getInputs() {
   return {
     years: Math.max(1, parseInt(document.getElementById('years').value) || 10),
-    experience: document.getElementById('experience').value,
-    unitPrice: Math.max(0, parseFloat(document.getElementById('unitPrice').value) || 0),
-    salary: Math.max(0, parseFloat(document.getElementById('salary').value) || 0),
     workDays: Math.max(0, parseFloat(document.getElementById('workDays').value) || 0),
     hireCost: Math.max(0, parseFloat(document.getElementById('hireCost').value) || 0),
     welfareRate: Math.max(0, parseFloat(document.getElementById('welfareRate').value) || 0) / 100,
+    tiers: getTiersFromDom(),
   };
 }
 
-// 稼働率カーブ（採用月を0として、m ヶ月後）
-function productivity(m, experience) {
-  if (experience === 'experienced') {
-    return m === 0 ? 0 : 1.0; // 採用月は稼働なし、翌月から満働
+function getTiersFromDom() {
+  const rows = document.querySelectorAll('#tierList .tier-row');
+  const tiers = [];
+  rows.forEach(row => {
+    tiers.push({
+      level: row.querySelector('.tierLevel').value,
+      duration: Math.max(0, parseInt(row.querySelector('.tierDuration').value) || 0),
+      unitPrice: Math.max(0, parseFloat(row.querySelector('.tierUnitPrice').value) || 0),
+      salary: Math.max(0, parseFloat(row.querySelector('.tierSalary').value) || 0),
+    });
+  });
+  return tiers;
+}
+
+// m ヶ月目（1始まり）にどの経験区分にいるか
+function getTierForWorkMonth(workMonthIdx, tiers) {
+  // workMonthIdx: 0 = 月1, 1 = 月2, ...
+  if (tiers.length === 0) return null;
+  let cum = 0;
+  for (let i = 0; i < tiers.length; i++) {
+    cum += tiers[i].duration;
+    if (workMonthIdx < cum) return tiers[i];
   }
-  // 未経験
-  if (m <= 2) return 0;         // 0〜2ヶ月目：研修
-  if (m <= 5) return 0.5;       // 3〜5ヶ月目：50%
-  if (m <= 11) return 0.8;      // 6〜11ヶ月目：80%
-  return 1.0;                    // 12ヶ月目以降：満働
+  return tiers[tiers.length - 1]; // はみ出した月は最後のステージを継続
 }
 
 function simulate() {
@@ -325,12 +400,20 @@ function simulate() {
   let totalRevenue = 0;
 
   for (let m = 0; m <= totalMonths; m++) {
-    const rate = productivity(m, p.experience);
-    const revenue = p.unitPrice * p.workDays * rate;
-    const labor = p.salary * (1 + p.welfareRate);
+    let revenue = 0;
+    let monthLabor = 0;
+    let tierLevel = '-';
+    if (m === 0) {
+      // 採用月：稼働なし・人件費なし・採用費のみ
+    } else {
+      const tier = getTierForWorkMonth(m - 1, p.tiers);
+      if (tier) {
+        revenue = tier.unitPrice * p.workDays;
+        monthLabor = tier.salary * (1 + p.welfareRate);
+        tierLevel = tier.level;
+      }
+    }
     const hire = (m === 0) ? p.hireCost : 0;
-    // 採用月は稼働0で人件費も発生しない想定（入社初日扱い）→ m===0 は hire のみ
-    const monthLabor = (m === 0) ? 0 : labor;
     const profit = revenue - monthLabor - hire;
     cum += profit;
     totalRevenue += revenue;
@@ -338,7 +421,7 @@ function simulate() {
     if (cum < maxLoss) maxLoss = cum;
     if (payback === null && cum >= 0 && m > 0) payback = m;
 
-    months.push({ m, revenue, labor: monthLabor, hire, profit, cum });
+    months.push({ m, revenue, labor: monthLabor, hire, profit, cum, tierLevel });
   }
 
   // 年次集計（1年目 = 月1〜12, 2年目 = 月13〜24 ...）
@@ -614,17 +697,85 @@ function setMode(m) {
 
 function resetForm() {
   document.getElementById('years').value = 10;
-  document.getElementById('experience').value = 'inexperienced';
-  document.getElementById('unitPrice').value = 25000;
-  document.getElementById('salary').value = 220000;
   document.getElementById('workDays').value = 20;
   document.getElementById('hireCost').value = 1500000;
   document.getElementById('welfareRate').value = 35;
+  buildTierList(DEFAULT_TIERS);
   runSim();
 }
 
+/* =========================================================
+   経験区分（ステージ）行の管理
+   ========================================================= */
+
+function buildTierList(tiers) {
+  const list = document.getElementById('tierList');
+  list.innerHTML = '';
+  tiers.forEach((t, i) => list.appendChild(makeTierRow(t, i)));
+  updateTierNumbers();
+}
+
+function makeTierRow(t, idx) {
+  const row = document.createElement('div');
+  row.className = 'tier-row';
+  row.innerHTML = `
+    <div>
+      <label><span class="tier-num">ステージ ${idx + 1}</span>経験区分</label>
+      <select class="tierLevel">
+        ${TIER_OPTIONS.map(o => `<option value="${o}" ${o === t.level ? 'selected' : ''}>${o}</option>`).join('')}
+      </select>
+    </div>
+    <div>
+      <label>継続月数</label>
+      <input type="number" class="tierDuration" value="${t.duration}" min="0" step="1">
+    </div>
+    <div>
+      <label>現場単価（円 / 日）</label>
+      <input type="number" class="tierUnitPrice" value="${t.unitPrice}" min="0" step="500">
+    </div>
+    <div>
+      <label>給料（円 / 月）</label>
+      <input type="number" class="tierSalary" value="${t.salary}" min="0" step="1000">
+    </div>
+    <button class="btn-remove" onclick="removeTier(this)" title="この区分を削除">×</button>
+  `;
+  return row;
+}
+
+function addTier() {
+  const list = document.getElementById('tierList');
+  // 最後の行の値をベースに追加（なければデフォルト）
+  const existing = getTiersFromDom();
+  const last = existing[existing.length - 1];
+  const seed = last
+    ? { level: last.level, duration: 12, unitPrice: last.unitPrice, salary: last.salary }
+    : { level: TIER_OPTIONS[0], duration: 12, unitPrice: 15000, salary: 200000 };
+  list.appendChild(makeTierRow(seed, existing.length));
+  updateTierNumbers();
+}
+
+function removeTier(btn) {
+  const list = document.getElementById('tierList');
+  if (list.children.length <= 1) return; // 最低1行は残す
+  btn.closest('.tier-row').remove();
+  updateTierNumbers();
+}
+
+function updateTierNumbers() {
+  const rows = document.querySelectorAll('#tierList .tier-row');
+  rows.forEach((row, i) => {
+    const num = row.querySelector('.tier-num');
+    if (num) num.textContent = `ステージ ${i + 1}`;
+    const rm = row.querySelector('.btn-remove');
+    if (rm) rm.disabled = (rows.length <= 1);
+  });
+}
+
 // 初期描画
-window.addEventListener('load', runSim);
+window.addEventListener('load', () => {
+  buildTierList(DEFAULT_TIERS);
+  runSim();
+});
 window.addEventListener('resize', () => { if (state.months.length) renderChart(); });
 </script>
 </body>
