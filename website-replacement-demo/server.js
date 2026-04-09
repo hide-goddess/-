@@ -69,18 +69,71 @@ function compactHtml(html, maxLength = 60000) {
 }
 
 /**
+ * 指定ミリ秒だけ待機する。
+ */
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * エラーが一時的なもの (リトライすべきか) を判定する。
+ * Gemini API は過負荷時に 503 UNAVAILABLE、
+ * レート超過時に 429 RESOURCE_EXHAUSTED を返す。
+ */
+function isTransientError(err) {
+  const msg = String(err?.message ?? "");
+  const status = err?.status ?? err?.code;
+  if (status === 503 || status === 429) return true;
+  if (status === "UNAVAILABLE" || status === "RESOURCE_EXHAUSTED") return true;
+  return (
+    /\b503\b/.test(msg) ||
+    /\b429\b/.test(msg) ||
+    /UNAVAILABLE/i.test(msg) ||
+    /RESOURCE_EXHAUSTED/i.test(msg) ||
+    /overloaded/i.test(msg) ||
+    /high demand/i.test(msg)
+  );
+}
+
+/**
  * Gemini にテキストプロンプトを投げ、応答テキストを返す。
+ * 503 / 429 等の一時エラーに対しては指数バックオフで最大 4 回リトライする。
+ * 待機時間: 1s → 2s → 4s → 8s (+ 最大500msのジッター)
  */
 async function generateText(prompt, maxOutputTokens) {
-  const response = await ai.models.generateContent({
-    model: MODEL,
-    contents: prompt,
-    config: {
-      maxOutputTokens,
-      temperature: 0.7,
-    },
-  });
-  return response.text ?? "";
+  const maxAttempts = 5; // 初回 + 4 リトライ
+  let lastError;
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const response = await ai.models.generateContent({
+        model: MODEL,
+        contents: prompt,
+        config: {
+          maxOutputTokens,
+          temperature: 0.7,
+        },
+      });
+      if (attempt > 1) {
+        console.log(`[gemini] attempt ${attempt} succeeded`);
+      }
+      return response.text ?? "";
+    } catch (err) {
+      lastError = err;
+      if (attempt === maxAttempts || !isTransientError(err)) {
+        throw err;
+      }
+      const backoffMs =
+        Math.pow(2, attempt - 1) * 1000 + Math.floor(Math.random() * 500);
+      console.warn(
+        `[gemini] attempt ${attempt} failed (${err?.status ?? ""} ${
+          err?.message?.slice(0, 120) ?? ""
+        }) — retrying in ${backoffMs}ms`
+      );
+      await sleep(backoffMs);
+    }
+  }
+  throw lastError;
 }
 
 // --- API routes ------------------------------------------------------------
@@ -113,7 +166,10 @@ app.post("/api/analyze-existing", async (req, res) => {
     });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: err.message });
+    const friendly = isTransientError(err)
+      ? "Gemini API が一時的に混雑しています。少し待ってから再度お試しください。(リトライ上限に到達)"
+      : err.message;
+    res.status(500).json({ error: friendly });
   }
 });
 
@@ -149,7 +205,10 @@ app.post("/api/analyze-reference", async (req, res) => {
     });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: err.message });
+    const friendly = isTransientError(err)
+      ? "Gemini API が一時的に混雑しています。少し待ってから再度お試しください。(リトライ上限に到達)"
+      : err.message;
+    res.status(500).json({ error: friendly });
   }
 });
 
@@ -199,7 +258,10 @@ app.post("/api/generate-replacement", async (req, res) => {
     res.json({ html });
   } catch (err) {
     console.error(err);
-    res.status(500).json({ error: err.message });
+    const friendly = isTransientError(err)
+      ? "Gemini API が一時的に混雑しています。少し待ってから再度お試しください。(リトライ上限に到達)"
+      : err.message;
+    res.status(500).json({ error: friendly });
   }
 });
 
