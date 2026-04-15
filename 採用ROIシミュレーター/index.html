@@ -468,6 +468,14 @@ function simulate() {
     months.push({ m, revenue, labor: monthLabor, hire, profit, cum, tierLevel });
   }
 
+  // 投資回収までの総額費用 = 採用費 + 回収月までの累計人件費
+  // （回収月未達の場合は全期間の累計）
+  const costEndIdx = (payback !== null) ? payback : totalMonths;
+  let totalCostUntilPayback = 0;
+  for (let i = 0; i <= costEndIdx; i++) {
+    totalCostUntilPayback += months[i].hire + months[i].labor;
+  }
+
   // 年次集計（1年目 = 月1〜12, 2年目 = 月13〜24 ...）
   // 採用月(0)は1年目に含める
   for (let y = 1; y <= p.years; y++) {
@@ -497,6 +505,7 @@ function simulate() {
   state.years = years;
   state.payback = payback;
   state.maxLoss = Math.abs(maxLoss);
+  state.totalCostUntilPayback = totalCostUntilPayback;
   state.totalRevenue = totalRevenue;
   state.totalProfit = cum;
   state.years10Revenue = y10Rev;
@@ -531,7 +540,7 @@ function renderKpi() {
       ? '<span style="color:#dc2626">未達</span>'
       : `${pb}<span class="unit">ヶ月<br>（約${(pb/12).toFixed(1)}年）</span>`;
   document.getElementById('kpiMaxLoss').innerHTML =
-    fmtYen(state.maxLoss);
+    fmtYen(state.totalCostUntilPayback);
   document.getElementById('kpiRevenue').innerHTML =
     fmtYen(state.years10Revenue);
   document.getElementById('kpiProfit').innerHTML =
