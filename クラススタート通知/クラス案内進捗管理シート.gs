@@ -45,8 +45,8 @@ function postToDiscordOnEdit(e) {
     // O列 + P列 + 共同運用者の組数を合計
     totalCount = totalCount + coOperatorGroupCount;
   }
-  // 5. 送信するメッセージを作成（ID11のメンション付き）
-  var messageContent = "<@1394490476488298568>\n" +
+  // 5. 送信するメッセージを作成（@【講師/CS】西田真優（ゆの）のメンション付き）
+  var messageContent = "<@1235946717803839572>\n" +
     "新クラススタート通知です！\n" +
     className + classAlpha + "組　" + totalCount + "名\n";
   // 共同運用者がある場合はメッセージに追加
