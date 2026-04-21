@@ -11,6 +11,7 @@
     initMobileNav();
     initHeaderScroll();
     initFaqAccordion();
+    initSmoothScroll();
   });
 
   /* ---------------------------------------------------------
@@ -79,6 +80,46 @@
 
     update();
     window.addEventListener('scroll', update, { passive: true });
+  }
+
+  /* ---------------------------------------------------------
+     1-4. Smooth scroll for in-page anchor links
+     - Offsets the fixed header height so the target is not
+       hidden underneath.
+     --------------------------------------------------------- */
+  function initSmoothScroll() {
+    const links = document.querySelectorAll('a[href^="#"]');
+    if (!links.length) return;
+
+    const prefersReducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+    links.forEach((link) => {
+      link.addEventListener('click', (e) => {
+        const href = link.getAttribute('href');
+        if (!href || href === '#' || href.length < 2) return;
+
+        const target = document.querySelector(href);
+        if (!target) return;
+
+        e.preventDefault();
+
+        const header = document.getElementById('siteHeader');
+        const headerH = header ? header.offsetHeight : 0;
+        const offset = headerH + 16;
+
+        const top = target.getBoundingClientRect().top + window.scrollY - offset;
+
+        window.scrollTo({
+          top,
+          behavior: prefersReducedMotion ? 'auto' : 'smooth',
+        });
+
+        // Update URL without jumping
+        if (history.pushState) {
+          history.pushState(null, '', href);
+        }
+      });
+    });
   }
 
   /* ---------------------------------------------------------
