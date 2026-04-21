@@ -1667,3 +1667,385 @@ body {
     transform: translateY(0);
   }
 }
+
+
+/* =========================================================
+   15. Company (会社概要)
+   ========================================================= */
+.company {
+  background: #fff;
+}
+
+.company-grid {
+  display: grid;
+  grid-template-columns: 1.1fr 1fr;
+  gap: var(--space-6);
+  align-items: start;
+  max-width: 980px;
+  margin: 0 auto;
+}
+
+.company-table {
+  width: 100%;
+  border-top: 2px solid var(--color-primary);
+  background: #fff;
+}
+
+.company-table tr {
+  border-bottom: 1px solid var(--color-border-soft);
+}
+
+.company-table th,
+.company-table td {
+  padding: var(--space-4) var(--space-4);
+  text-align: left;
+  vertical-align: top;
+  font-size: var(--fs-sm);
+  line-height: 1.8;
+}
+
+.company-table th {
+  width: 140px;
+  font-weight: 700;
+  color: var(--color-primary);
+  background: var(--color-bg-soft);
+  letter-spacing: 0.04em;
+}
+
+.company-table td {
+  color: var(--color-text);
+}
+
+.company-table td a {
+  color: var(--color-primary);
+  font-weight: 700;
+  text-decoration: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 3px;
+}
+
+.company-table td a:hover {
+  color: var(--color-primary-light);
+}
+
+/* Map placeholder */
+.company-map {
+  position: sticky;
+  top: calc(var(--header-h) + var(--space-4));
+  aspect-ratio: 4 / 3;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-md);
+  border: 1px solid var(--color-border);
+}
+
+.map-placeholder {
+  width: 100%;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  text-align: center;
+  background:
+    linear-gradient(135deg, rgba(30, 77, 145, 0.08), rgba(58, 160, 255, 0.05)),
+    repeating-linear-gradient(0deg, #eaeef5 0 40px, #f5f7fb 40px 80px),
+    repeating-linear-gradient(90deg, #eaeef5 0 40px, #f5f7fb 40px 80px);
+  color: var(--color-text-muted);
+  font-size: var(--fs-sm);
+  line-height: 1.8;
+  padding: var(--space-5);
+}
+
+.map-pin {
+  font-size: 2.6rem;
+  margin-bottom: var(--space-3);
+  filter: drop-shadow(0 4px 8px rgba(15, 31, 58, 0.25));
+}
+
+.map-placeholder p {
+  font-weight: 700;
+  color: var(--color-text);
+}
+
+.map-note {
+  margin-top: var(--space-2);
+  font-size: var(--fs-xs);
+  font-weight: 400 !important;
+  color: var(--color-text-light) !important;
+}
+
+
+/* =========================================================
+   16. Contact (お問い合わせフォーム)
+   ========================================================= */
+.contact {
+  position: relative;
+  background:
+    radial-gradient(ellipse at 20% 20%, rgba(58, 160, 255, 0.2) 0%, transparent 55%),
+    radial-gradient(ellipse at 80% 80%, rgba(45, 108, 192, 0.2) 0%, transparent 55%),
+    linear-gradient(160deg, #0f1f3a 0%, #143868 55%, #1e4d91 100%);
+  color: #fff;
+  overflow: hidden;
+}
+
+.contact::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.04) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse at center, #000 30%, transparent 80%);
+  -webkit-mask-image: radial-gradient(ellipse at center, #000 30%, transparent 80%);
+  pointer-events: none;
+}
+
+.contact-grid {
+  position: relative;
+  display: grid;
+  grid-template-columns: 320px 1fr;
+  gap: var(--space-6);
+  max-width: 1040px;
+  margin: 0 auto;
+}
+
+/* ---- Phone block ---- */
+.contact-phone {
+  padding: var(--space-6) var(--space-5);
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: var(--radius-lg);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  text-align: center;
+  height: fit-content;
+  position: sticky;
+  top: calc(var(--header-h) + var(--space-4));
+}
+
+.contact-phone-label {
+  font-size: var(--fs-sm);
+  letter-spacing: 0.1em;
+  color: var(--color-accent);
+  margin-bottom: var(--space-3);
+}
+
+.contact-phone-num {
+  display: block;
+  font-family: var(--font-serif);
+  font-size: clamp(2rem, 4vw, 2.6rem);
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: 0.02em;
+  color: #fff;
+  margin-bottom: var(--space-2);
+}
+
+.contact-phone-num:hover {
+  color: var(--color-accent);
+}
+
+.contact-phone-hours {
+  font-size: var(--fs-xs);
+  color: rgba(255, 255, 255, 0.75);
+  letter-spacing: 0.08em;
+}
+
+/* ---- Form ---- */
+.contact-form {
+  background: #fff;
+  color: var(--color-text);
+  padding: var(--space-6);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+}
+
+.form-label {
+  font-size: var(--fs-md);
+  font-weight: 700;
+  color: var(--color-primary);
+  margin-bottom: var(--space-4);
+  padding-bottom: var(--space-3);
+  border-bottom: 2px solid var(--color-border-soft);
+}
+
+.form-row {
+  margin-bottom: var(--space-4);
+}
+
+.form-row-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-4);
+}
+
+.form-field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.form-field > span,
+.form-field-label {
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  color: var(--color-text);
+  display: block;
+  margin-bottom: var(--space-2);
+}
+
+.form-field > span em,
+.form-field-label em {
+  display: inline-block;
+  margin-left: var(--space-2);
+  padding: 0.1em 0.5em;
+  background: var(--color-required);
+  color: #fff;
+  border-radius: var(--radius-sm);
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  font-style: normal;
+  vertical-align: 0.15em;
+}
+
+.form-field input[type="text"],
+.form-field input[type="email"],
+.form-field input[type="tel"],
+.form-field textarea {
+  width: 100%;
+  padding: 0.85em 1em;
+  font-size: var(--fs-sm);
+  line-height: 1.7;
+  color: var(--color-text);
+  background: var(--color-bg-soft);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  transition: border-color var(--duration) var(--ease),
+              background var(--duration) var(--ease),
+              box-shadow var(--duration) var(--ease);
+}
+
+.form-field input::placeholder,
+.form-field textarea::placeholder {
+  color: var(--color-text-light);
+}
+
+.form-field input:focus,
+.form-field textarea:focus {
+  outline: none;
+  background: #fff;
+  border-color: var(--color-primary-light);
+  box-shadow: 0 0 0 3px rgba(58, 160, 255, 0.15);
+}
+
+.form-field textarea {
+  resize: vertical;
+  min-height: 140px;
+}
+
+/* Checkbox group (inquiry) */
+.checkbox-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  padding: var(--space-3) 0;
+}
+
+.checkbox-group label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0.5em 1em;
+  background: var(--color-bg-soft);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-pill);
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  color: var(--color-text);
+  cursor: pointer;
+  transition: background var(--duration) var(--ease),
+              border-color var(--duration) var(--ease),
+              color var(--duration) var(--ease);
+}
+
+.checkbox-group label:hover {
+  border-color: var(--color-primary-light);
+  color: var(--color-primary);
+}
+
+.checkbox-group input[type="checkbox"] {
+  accent-color: var(--color-primary);
+  width: 16px;
+  height: 16px;
+  cursor: pointer;
+}
+
+.checkbox-group label:has(input:checked) {
+  background: var(--color-primary);
+  border-color: var(--color-primary);
+  color: #fff;
+}
+
+/* Privacy checkbox */
+.form-privacy {
+  text-align: center;
+  padding: var(--space-3);
+  background: var(--color-bg-soft);
+  border-radius: var(--radius-md);
+}
+
+.checkbox-inline {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--fs-sm);
+  cursor: pointer;
+}
+
+.checkbox-inline input[type="checkbox"] {
+  accent-color: var(--color-primary);
+  width: 18px;
+  height: 18px;
+}
+
+.checkbox-inline em {
+  display: inline-block;
+  margin-left: var(--space-2);
+  padding: 0.1em 0.5em;
+  background: var(--color-required);
+  color: #fff;
+  border-radius: var(--radius-sm);
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  font-style: normal;
+}
+
+/* Submit */
+.form-submit {
+  text-align: center;
+  margin-top: var(--space-5);
+}
+
+.btn-block {
+  width: 100%;
+  max-width: 460px;
+}
+
+/* Result panel (shown via JS after dummy submit) */
+.form-result {
+  margin-top: var(--space-5);
+  padding: var(--space-5);
+  border-radius: var(--radius-md);
+  background: #ecf8f1;
+  border: 1px solid #b6e3c9;
+  color: var(--color-success);
+  font-weight: 700;
+  text-align: center;
+  animation: faqSlide 300ms var(--ease);
+}
+
+.form-result p {
+  line-height: 1.8;
+}
