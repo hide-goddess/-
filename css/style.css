@@ -2049,3 +2049,166 @@ body {
 .form-result p {
   line-height: 1.8;
 }
+
+
+/* =========================================================
+   17. Footer
+   ========================================================= */
+.site-footer {
+  background: var(--color-bg-dark);
+  color: rgba(255, 255, 255, 0.85);
+  padding: var(--space-8) 0 var(--space-5);
+  font-size: var(--fs-sm);
+  line-height: 1.9;
+}
+
+.footer-inner {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: var(--space-7);
+  padding-bottom: var(--space-6);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+/* ---- Brand block ---- */
+.footer-brand {
+  max-width: 340px;
+}
+
+.footer-logo {
+  font-size: var(--fs-lg);
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: 0.04em;
+  margin-bottom: var(--space-3);
+}
+
+.footer-logo::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 1em;
+  background: var(--color-accent);
+  margin-right: var(--space-3);
+  vertical-align: -0.1em;
+  border-radius: 2px;
+}
+
+.footer-address {
+  font-size: var(--fs-xs);
+  line-height: 1.9;
+  color: rgba(255, 255, 255, 0.7);
+  letter-spacing: 0.04em;
+}
+
+.footer-address a {
+  color: var(--color-accent);
+  font-family: var(--font-serif);
+  font-weight: 700;
+  letter-spacing: 0.02em;
+}
+
+.footer-address a:hover {
+  color: #fff;
+}
+
+/* ---- Footer nav ---- */
+.footer-nav ul {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--space-2) var(--space-4);
+}
+
+.footer-nav a {
+  position: relative;
+  display: inline-block;
+  padding: 0.3em 0;
+  padding-left: 1em;
+  font-size: var(--fs-sm);
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.8);
+}
+
+.footer-nav a::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 5px;
+  height: 5px;
+  background: var(--color-accent);
+  border-radius: 50%;
+  transition: transform var(--duration) var(--ease);
+}
+
+.footer-nav a:hover {
+  color: #fff;
+}
+
+.footer-nav a:hover::before {
+  transform: translateY(-50%) scale(1.5);
+}
+
+/* ---- Copyright ---- */
+.copyright {
+  padding-top: var(--space-4);
+  text-align: center;
+  font-size: var(--fs-xs);
+  color: rgba(255, 255, 255, 0.5);
+  letter-spacing: 0.08em;
+}
+
+
+/* =========================================================
+   18. Floating CTA (mobile)
+   ========================================================= */
+.floating-cta {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 90;
+  display: none;
+  grid-template-columns: 1fr 1fr;
+  box-shadow: 0 -8px 24px rgba(15, 31, 58, 0.15);
+}
+
+.floating-cta > a {
+  display: grid;
+  place-items: center;
+  padding: 0.9em 0.5em;
+  font-size: var(--fs-sm);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #fff;
+}
+
+.floating-tel {
+  background: var(--color-primary-dark);
+}
+
+.floating-tel:hover {
+  color: #fff;
+  background: var(--color-primary);
+}
+
+.floating-form {
+  background: var(--color-accent);
+  color: #0f1f3a;
+}
+
+.floating-form:hover {
+  color: #0f1f3a;
+  background: #5bb3ff;
+}
+
+@media (max-width: 768px) {
+  .floating-cta {
+    display: grid;
+  }
+
+  body {
+    padding-bottom: 56px;
+  }
+}
