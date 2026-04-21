@@ -2212,3 +2212,341 @@ body {
     padding-bottom: 56px;
   }
 }
+
+
+/* =========================================================
+   19. Responsive (tablet / mobile) — unified media queries
+   Header/hero are handled inline above.
+   ========================================================= */
+
+/* ---- Tablet (<=1024px) ---- */
+@media (max-width: 1024px) {
+  /* Pain */
+  .pain-list {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  /* About / Strengths */
+  .strength-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  /* Reasons: stack image above body */
+  .reason-item,
+  .reason-item.reverse {
+    grid-template-columns: 1fr;
+    direction: ltr;
+    gap: var(--space-5);
+  }
+
+  .reason-image {
+    aspect-ratio: 16 / 9;
+  }
+
+  /* Mid CTA */
+  .mid-cta-inner {
+    grid-template-columns: 1fr;
+    text-align: center;
+  }
+
+  .mid-cta-btns {
+    flex-direction: row;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  /* Works & Voice */
+  .works-grid,
+  .voice-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  /* Company */
+  .company-grid {
+    grid-template-columns: 1fr;
+    gap: var(--space-5);
+  }
+
+  .company-map {
+    position: static;
+    aspect-ratio: 16 / 9;
+  }
+
+  /* Contact */
+  .contact-grid {
+    grid-template-columns: 1fr;
+    gap: var(--space-5);
+  }
+
+  .contact-phone {
+    position: static;
+  }
+
+  /* Footer */
+  .footer-inner {
+    grid-template-columns: 1fr;
+    gap: var(--space-5);
+  }
+
+  .footer-nav ul {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
+
+/* ---- Mobile (<=768px) ---- */
+@media (max-width: 768px) {
+  /* Container padding tightens */
+  .container {
+    padding-inline: var(--space-4);
+  }
+
+  /* Section vertical spacing */
+  .section {
+    padding: var(--space-7) 0;
+  }
+
+  .section-head {
+    margin-bottom: var(--space-6);
+  }
+
+  .section-kicker::before,
+  .section-kicker::after {
+    width: 16px;
+    margin: 0 var(--space-2) 0.2em;
+  }
+
+  /* Pain */
+  .pain-list {
+    grid-template-columns: 1fr;
+    gap: var(--space-3);
+  }
+
+  .pain-list li {
+    padding: var(--space-4);
+  }
+
+  .pain-icon {
+    width: 40px;
+    height: 40px;
+    font-size: 1.2rem;
+  }
+
+  .pain-answer {
+    line-height: 1.5;
+  }
+
+  /* About / Strengths */
+  .strength-grid {
+    grid-template-columns: 1fr;
+    gap: var(--space-4);
+  }
+
+  .strength-card {
+    padding: var(--space-5) var(--space-4);
+  }
+
+  .strength-num {
+    font-size: 2rem;
+  }
+
+  /* Reasons */
+  .reasons-list {
+    gap: var(--space-6);
+  }
+
+  .reason-body > p {
+    font-size: var(--fs-sm);
+  }
+
+  /* Mid CTA */
+  .mid-cta {
+    padding: var(--space-6) 0;
+  }
+
+  .mid-cta-btns {
+    flex-direction: column;
+    gap: var(--space-3);
+  }
+
+  .mid-cta-btns .btn-lg {
+    width: 100%;
+    min-width: 0;
+  }
+
+  /* Flow */
+  .flow-item {
+    grid-template-columns: 60px 1fr;
+    gap: var(--space-4);
+    padding: var(--space-4);
+  }
+
+  .flow-num {
+    width: 60px;
+    height: 60px;
+    font-size: var(--fs-md);
+  }
+
+  .flow-item:not(:last-child)::after {
+    left: 44px;
+  }
+
+  /* Works & Voice */
+  .works-grid,
+  .voice-grid {
+    grid-template-columns: 1fr;
+    gap: var(--space-4);
+  }
+
+  /* Voice */
+  .voice-card {
+    padding: var(--space-5) var(--space-4) var(--space-4);
+  }
+
+  .voice-card::before {
+    font-size: 4rem;
+  }
+
+  /* FAQ */
+  .faq-item > summary {
+    padding: var(--space-3) var(--space-4);
+    font-size: var(--fs-sm);
+    gap: var(--space-3);
+  }
+
+  .faq-q {
+    width: 28px;
+    height: 28px;
+    font-size: var(--fs-sm);
+  }
+
+  .faq-toggle {
+    width: 24px;
+    height: 24px;
+    font-size: 1rem;
+  }
+
+  .faq-a {
+    padding: 0 var(--space-4) var(--space-4);
+  }
+
+  .faq-a p {
+    padding-left: calc(28px + var(--space-3));
+    font-size: var(--fs-sm);
+  }
+
+  /* Company */
+  .company-table th,
+  .company-table td {
+    display: block;
+    width: 100%;
+    padding: var(--space-3) var(--space-4);
+  }
+
+  .company-table th {
+    padding-top: var(--space-4);
+    border-bottom: none;
+  }
+
+  .company-table td {
+    padding-top: var(--space-2);
+    padding-bottom: var(--space-4);
+  }
+
+  /* Contact form */
+  .contact-form {
+    padding: var(--space-5) var(--space-4);
+  }
+
+  .form-row-2 {
+    grid-template-columns: 1fr;
+    gap: var(--space-4);
+  }
+
+  .checkbox-group {
+    gap: var(--space-2);
+  }
+
+  .checkbox-group label {
+    font-size: var(--fs-xs);
+    padding: 0.4em 0.9em;
+  }
+
+  .contact-phone-num {
+    font-size: 1.8rem;
+  }
+
+  /* Footer */
+  .site-footer {
+    padding: var(--space-6) 0 calc(var(--space-5) + 56px);
+  }
+
+  .footer-nav ul {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+
+/* ---- Small mobile (<=480px) ---- */
+@media (max-width: 480px) {
+  .section-title {
+    letter-spacing: 0.02em;
+  }
+
+  .section-lead {
+    font-size: var(--fs-sm);
+  }
+
+  .pain-list li {
+    gap: var(--space-3);
+  }
+
+  .pain-list li p {
+    font-size: var(--fs-xs);
+  }
+
+  .flow-item {
+    grid-template-columns: 1fr;
+    text-align: center;
+  }
+
+  .flow-num {
+    margin: 0 auto;
+  }
+
+  .flow-item:not(:last-child)::after {
+    left: 50%;
+  }
+
+  .work-body,
+  .voice-card {
+    padding: var(--space-4);
+  }
+
+  .contact-form {
+    padding: var(--space-4) var(--space-3);
+  }
+
+  .btn {
+    letter-spacing: 0.02em;
+  }
+
+  .btn-lg {
+    padding: 0.9em 1.2em;
+  }
+}
+
+
+/* =========================================================
+   20. Motion / Accessibility
+   ========================================================= */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
