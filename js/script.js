@@ -12,6 +12,7 @@
     initHeaderScroll();
     initFaqAccordion();
     initSmoothScroll();
+    initContactForm();
   });
 
   /* ---------------------------------------------------------
@@ -140,6 +141,73 @@
           }
         });
       });
+    });
+  }
+
+  /* ---------------------------------------------------------
+     1-5. Contact form dummy submit
+     - Front-end only: no actual submission to a server.
+     - Performs basic validation, shows an alert, displays a
+       success panel, and resets the form.
+     --------------------------------------------------------- */
+  function initContactForm() {
+    const form = document.getElementById('contactForm');
+    if (!form) return;
+
+    const result = document.getElementById('formResult');
+
+    form.addEventListener('submit', (e) => {
+      e.preventDefault();
+
+      // Basic HTML5 validation
+      if (!form.checkValidity()) {
+        form.reportValidity();
+        return;
+      }
+
+      // Require at least one "ご相談内容" checkbox
+      const inquiries = form.querySelectorAll('input[name="inquiry"]:checked');
+      if (inquiries.length === 0) {
+        window.alert('ご相談内容を1つ以上お選びください。');
+        const firstCheckbox = form.querySelector('input[name="inquiry"]');
+        if (firstCheckbox) firstCheckbox.focus();
+        return;
+      }
+
+      // Disable submit button to prevent double submit
+      const submitBtn = form.querySelector('button[type="submit"]');
+      if (submitBtn) {
+        submitBtn.disabled = true;
+        submitBtn.style.opacity = '0.6';
+        submitBtn.style.cursor = 'not-allowed';
+      }
+
+      // Dummy "submission" — show alert + success panel
+      window.alert(
+        'お問合せを受け付けました。\n\n' +
+        'ご入力ありがとうございます。\n' +
+        '最短翌営業日以内にご連絡いたします。\n\n' +
+        '※ こちらはデモ画面です。実際の送信は行われません。'
+      );
+
+      if (result) {
+        result.hidden = false;
+        // Scroll the result into view
+        const header = document.getElementById('siteHeader');
+        const headerH = header ? header.offsetHeight : 0;
+        const top = result.getBoundingClientRect().top + window.scrollY - headerH - 16;
+        window.scrollTo({ top, behavior: 'smooth' });
+      }
+
+      // Reset after a short delay so the user can see the change
+      setTimeout(() => {
+        form.reset();
+        if (submitBtn) {
+          submitBtn.disabled = false;
+          submitBtn.style.opacity = '';
+          submitBtn.style.cursor = '';
+        }
+      }, 400);
     });
   }
 })();
