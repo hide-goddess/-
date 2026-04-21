@@ -10,6 +10,7 @@
   document.addEventListener('DOMContentLoaded', () => {
     initMobileNav();
     initHeaderScroll();
+    initFaqAccordion();
   });
 
   /* ---------------------------------------------------------
@@ -78,5 +79,26 @@
 
     update();
     window.addEventListener('scroll', update, { passive: true });
+  }
+
+  /* ---------------------------------------------------------
+     1-3. FAQ accordion (exclusive open)
+     - Uses native <details>/<summary> and enforces that
+       only one item can be open at a time.
+     --------------------------------------------------------- */
+  function initFaqAccordion() {
+    const items = document.querySelectorAll('.faq-item');
+    if (!items.length) return;
+
+    items.forEach((item) => {
+      item.addEventListener('toggle', () => {
+        if (!item.open) return;
+        items.forEach((other) => {
+          if (other !== item && other.open) {
+            other.open = false;
+          }
+        });
+      });
+    });
   }
 })();
