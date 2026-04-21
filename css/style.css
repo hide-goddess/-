@@ -1318,3 +1318,220 @@ body {
   line-height: 1.9;
   color: var(--color-text-muted);
 }
+
+
+/* =========================================================
+   12. Works (施工事例)
+   ========================================================= */
+.works {
+  background: var(--color-bg-soft);
+}
+
+.works-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-5);
+}
+
+.work-card {
+  display: flex;
+  flex-direction: column;
+  background: #fff;
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+  border: 1px solid var(--color-border-soft);
+  transition: transform var(--duration) var(--ease),
+              box-shadow var(--duration) var(--ease);
+}
+
+.work-card:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-lg);
+}
+
+.work-thumb {
+  position: relative;
+  aspect-ratio: 4 / 3;
+  overflow: hidden;
+}
+
+.work-thumb::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(180deg, transparent 55%, rgba(15, 31, 58, 0.35));
+}
+
+.work-thumb::after {
+  content: "";
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 64px;
+  height: 64px;
+  background: rgba(255, 255, 255, 0.85);
+  border-radius: 50%;
+  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.2);
+  opacity: 0;
+  transition: opacity var(--duration) var(--ease);
+}
+
+.work-card:hover .work-thumb::after {
+  opacity: 1;
+}
+
+.work-thumb-1 {
+  background:
+    linear-gradient(135deg, rgba(30, 77, 145, 0.7), rgba(58, 160, 255, 0.3)),
+    linear-gradient(45deg, #b8c7d9 25%, #dde4ed 25%, #dde4ed 50%, #b8c7d9 50%, #b8c7d9 75%, #dde4ed 75%);
+  background-size: auto, 60px 60px;
+}
+
+.work-thumb-2 {
+  background:
+    linear-gradient(135deg, rgba(20, 56, 104, 0.65), rgba(45, 108, 192, 0.35)),
+    repeating-linear-gradient(0deg, #c5d1e0 0 30px, #dde4ed 30px 60px);
+}
+
+.work-thumb-3 {
+  background:
+    linear-gradient(135deg, rgba(30, 77, 145, 0.65), rgba(58, 160, 255, 0.3)),
+    repeating-linear-gradient(90deg, #b8c7d9 0 40px, #dde4ed 40px 80px);
+}
+
+.work-thumb-4 {
+  background:
+    linear-gradient(135deg, rgba(20, 56, 104, 0.7), rgba(45, 108, 192, 0.35)),
+    repeating-linear-gradient(135deg, #c5d1e0 0 25px, #dde4ed 25px 50px);
+}
+
+.work-thumb-5 {
+  background:
+    linear-gradient(135deg, rgba(15, 31, 58, 0.65), rgba(58, 160, 255, 0.3)),
+    radial-gradient(circle at 30% 30%, #dde4ed 0, transparent 40%),
+    linear-gradient(135deg, #b8c7d9, #c5d1e0);
+}
+
+.work-thumb-6 {
+  background:
+    linear-gradient(135deg, rgba(30, 77, 145, 0.65), rgba(45, 108, 192, 0.35)),
+    conic-gradient(from 45deg at 50% 50%, #b8c7d9, #dde4ed, #c5d1e0, #b8c7d9);
+}
+
+.work-body {
+  padding: var(--space-5);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  flex: 1;
+}
+
+.work-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+}
+
+.work-tags span {
+  display: inline-block;
+  padding: 0.25em 0.9em;
+  background: var(--color-bg-section);
+  color: var(--color-primary);
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  border-radius: var(--radius-pill);
+}
+
+.work-tags span:first-child {
+  background: var(--color-primary);
+  color: #fff;
+}
+
+.work-title {
+  font-size: var(--fs-md);
+  font-weight: 700;
+  line-height: 1.5;
+  color: var(--color-text);
+}
+
+.work-meta {
+  font-size: var(--fs-xs);
+  color: var(--color-text-light);
+  font-weight: 500;
+  letter-spacing: 0.04em;
+}
+
+.work-desc {
+  font-size: var(--fs-sm);
+  line-height: 1.8;
+  color: var(--color-text-muted);
+  margin-top: auto;
+}
+
+
+/* =========================================================
+   13. Voice (お客様の声)
+   ========================================================= */
+.voice {
+  background: #fff;
+}
+
+.voice-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: var(--space-5);
+}
+
+.voice-card {
+  position: relative;
+  padding: var(--space-6) var(--space-5) var(--space-5);
+  background: var(--color-bg-soft);
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--color-border-soft);
+  transition: transform var(--duration) var(--ease),
+              box-shadow var(--duration) var(--ease);
+}
+
+.voice-card::before {
+  content: "\201C";
+  position: absolute;
+  top: -0.2em;
+  left: 0.3em;
+  font-family: var(--font-serif);
+  font-size: 5rem;
+  line-height: 1;
+  color: var(--color-primary);
+  opacity: 0.18;
+}
+
+.voice-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--shadow-md);
+}
+
+.voice-rating {
+  color: #f5b400;
+  font-size: var(--fs-md);
+  letter-spacing: 0.15em;
+  margin-bottom: var(--space-3);
+}
+
+.voice-text {
+  position: relative;
+  font-size: var(--fs-sm);
+  line-height: 2;
+  color: var(--color-text);
+  margin-bottom: var(--space-4);
+}
+
+.voice-from {
+  padding-top: var(--space-3);
+  border-top: 1px dashed var(--color-border);
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  color: var(--color-text-muted);
+  letter-spacing: 0.04em;
+}
