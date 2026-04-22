@@ -16,7 +16,6 @@ const MODEL = process.env.GEMINI_MODEL || "gemini-2.0-flash";
 const FALLBACK_MODELS = [
   MODEL,
   "gemini-2.5-flash",
-  "gemini-1.5-flash-latest",
 ];
 
 if (!process.env.GEMINI_API_KEY) {
@@ -104,7 +103,7 @@ function isTransientError(err) {
 /**
  * 1つのモデルに対して指数バックオフで最大 maxAttempts 回リトライする。
  */
-async function tryModelWithRetry(model, prompt, maxOutputTokens, maxAttempts = 3) {
+async function tryModelWithRetry(model, prompt, maxOutputTokens, maxAttempts = 5) {
   let lastError;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
@@ -126,9 +125,10 @@ async function tryModelWithRetry(model, prompt, maxOutputTokens, maxAttempts = 3
         throw err;
       }
       const backoffMs =
-        Math.pow(2, attempt - 1) * 1000 + Math.floor(Math.random() * 500);
+        5000 * Math.pow(2, attempt - 1) + Math.floor(Math.random() * 2000);
+      const secs = (backoffMs / 1000).toFixed(1);
       console.warn(
-        `[gemini] ${model} attempt ${attempt} failed — retrying in ${backoffMs}ms`
+        `[gemini] ${model} attempt ${attempt} failed — retrying in ${secs}s`
       );
       await sleep(backoffMs);
     }
@@ -293,4 +293,5 @@ app.post("/api/generate-replacement", async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Website Replacement Demo → http://localhost:${PORT}`);
   console.log(`Model: ${MODEL} (fallback: ${FALLBACK_MODELS.slice(1).join(" → ")})`);
+  console.log(`Retry: 各モデル最大5回 (待機: 5s → 10s → 20s → 40s)`);
 });
