@@ -18,13 +18,26 @@ const FALLBACK_MODELS = [
   "gemini-2.5-flash",
 ];
 
-if (!process.env.GEMINI_API_KEY) {
+// --- 複数APIキー対応 -------------------------------------------------------
+
+const API_KEYS = [
+  process.env.GEMINI_API_KEY_1,
+  process.env.GEMINI_API_KEY_2,
+  process.env.GEMINI_API_KEY_3,
+  process.env.GEMINI_API_KEY, // 後方互換: GEMINI_API_KEY も使える
+].filter(Boolean);
+
+// 重複除去
+const uniqueKeys = [...new Set(API_KEYS)];
+
+if (uniqueKeys.length === 0) {
   console.warn(
-    "[warn] GEMINI_API_KEY が未設定です。.env ファイルに設定してください。"
+    "[warn] APIキーが未設定です。.env に GEMINI_API_KEY_1 等を設定してください。"
   );
 }
 
-const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
+const clients = uniqueKeys.map((key) => new GoogleGenAI({ apiKey: key }));
+let currentKeyIndex = 0;
 
 // --- Helpers ---------------------------------------------------------------
 
@@ -101,13 +114,13 @@ function isTransientError(err) {
 }
 
 /**
- * 1つのモデルに対して指数バックオフで最大 maxAttempts 回リトライする。
+ * 1つのクライアント・モデルで最大 maxAttempts 回リトライする。
  */
-async function tryModelWithRetry(model, prompt, maxOutputTokens, maxAttempts = 5) {
+async function tryWithRetry(client, model, prompt, maxOutputTokens, maxAttempts = 3) {
   let lastError;
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
-      const response = await ai.models.generateContent({
+      const response = await client.models.generateContent({
         model,
         contents: prompt,
         config: {
@@ -125,7 +138,7 @@ async function tryModelWithRetry(model, prompt, maxOutputTokens, maxAttempts = 5
         throw err;
       }
       const backoffMs =
-        5000 * Math.pow(2, attempt - 1) + Math.floor(Math.random() * 2000);
+        3000 * Math.pow(2, attempt - 1) + Math.floor(Math.random() * 1000);
       const secs = (backoffMs / 1000).toFixed(1);
       console.warn(
         `[gemini] ${model} attempt ${attempt} failed — retrying in ${secs}s`
@@ -138,25 +151,36 @@ async function tryModelWithRetry(model, prompt, maxOutputTokens, maxAttempts = 5
 
 /**
  * Gemini にテキストプロンプトを投げ、応答テキストを返す。
- * 1つ目のモデルが全リトライ失敗したら、自動で次のモデルに切り替える。
- * フォールバック順: GEMINI_MODEL → gemini-2.0-flash → gemini-1.5-flash
+ * APIキーローテーション × モデルフォールバック × リトライ の3層構造:
+ *   Key1 → [model1(3回), model2(3回)]
+ *   Key2 → [model1(3回), model2(3回)]
+ *   Key3 → [model1(3回), model2(3回)]
  */
 async function generateText(prompt, maxOutputTokens) {
   let lastError;
 
-  for (const model of FALLBACK_MODELS) {
-    try {
-      console.log(`[gemini] trying model: ${model}`);
-      return await tryModelWithRetry(model, prompt, maxOutputTokens);
-    } catch (err) {
-      lastError = err;
-      if (!isTransientError(err)) {
-        throw err;
+  for (let ki = 0; ki < clients.length; ki++) {
+    const idx = (currentKeyIndex + ki) % clients.length;
+    const client = clients[idx];
+    console.log(`[gemini] === APIキー ${idx + 1}/${clients.length} を使用 ===`);
+
+    for (const model of FALLBACK_MODELS) {
+      try {
+        console.log(`[gemini] trying model: ${model}`);
+        const result = await tryWithRetry(client, model, prompt, maxOutputTokens);
+        currentKeyIndex = idx;
+        return result;
+      } catch (err) {
+        lastError = err;
+        if (!isTransientError(err)) {
+          throw err;
+        }
+        console.warn(
+          `[gemini] ${model} failed — next model`
+        );
       }
-      console.warn(
-        `[gemini] ${model} exhausted all retries — falling back to next model`
-      );
     }
+    console.warn(`[gemini] APIキー ${idx + 1} — 全モデル失敗。次のキーへ切替…`);
   }
   throw lastError;
 }
@@ -307,5 +331,6 @@ app.post("/api/generate-replacement", async (req, res) => {
 app.listen(PORT, () => {
   console.log(`Website Replacement Demo → http://localhost:${PORT}`);
   console.log(`Model: ${MODEL} (fallback: ${FALLBACK_MODELS.slice(1).join(" → ")})`);
-  console.log(`Retry: 各モデル最大5回 (待機: 5s → 10s → 20s → 40s)`);
+  console.log(`API Keys: ${uniqueKeys.length}個 登録済み`);
+  console.log(`Retry: 各キー×各モデル 最大3回 (計 最大${uniqueKeys.length * FALLBACK_MODELS.length * 3}回)`);
 });
