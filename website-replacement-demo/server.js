@@ -276,9 +276,11 @@ app.post("/api/generate-replacement", async (req, res) => {
 
     const text = await generateText(prompt, 8000);
 
-    // ```html ... ``` フェンスが付いた場合は剥がす
-    const fenceMatch = text.match(/```(?:html)?\s*([\s\S]*?)```/i);
-    const html = fenceMatch ? fenceMatch[1].trim() : text.trim();
+    // ```html ... ``` フェンスや前後の装飾テキストを剥がす
+    let html = text.trim();
+    html = html.replace(/^[\s\S]*?```(?:html)?\s*\n/i, "");
+    html = html.replace(/\n?```[\s\S]*$/i, "");
+    html = html.trim();
 
     res.json({ html });
   } catch (err) {
