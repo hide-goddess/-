@@ -265,22 +265,34 @@ app.post("/api/generate-replacement", async (req, res) => {
       "2. 参考新規URLのデザインやUXを取り入れ、より良くすること\n" +
       "3. ユーザーからのテキスト指示を最優先で反映すること\n" +
       "4. 出力は <!DOCTYPE html> から始まる完全なHTML 1ファイル(インラインCSS可、外部依存なし、日本語)\n" +
-      "5. 装飾・説明文は出力せず、HTMLコードのみを返すこと\n\n" +
+      "5. コードフェンス(```)は絶対に使わず、生のHTMLだけを返すこと\n" +
+      "6. 説明文・コメント・注釈は一切出力しないこと\n\n" +
       `■ 既存HP URL: ${existingUrl}\n` +
       `■ 既存HP 要約:\n${existingSummary || "(なし)"}\n\n` +
-      `■ 既存HP HTML(抜粋):\n${(existingHtml || "").slice(0, 20000)}\n\n` +
+      `■ 既存HP HTML(抜粋):\n${(existingHtml || "").slice(0, 15000)}\n\n` +
       `■ 参考新規URL: ${referenceUrl || "(なし)"}\n` +
-      `■ 参考HTML(抜粋):\n${(referenceHtml || "").slice(0, 20000)}\n\n` +
+      `■ 参考HTML(抜粋):\n${(referenceHtml || "").slice(0, 15000)}\n\n` +
       `■ 参考から得た改善案:\n${improvements || "(なし)"}\n\n` +
       `■ ユーザー指示(最優先):\n${instructions || "(特になし)"}\n`;
 
-    const text = await generateText(prompt, 8000);
+    const text = await generateText(prompt, 30000);
 
-    // ```html ... ``` フェンスや前後の装飾テキストを剥がす
+    // コードフェンスを除去し、HTMLだけを取り出す
     let html = text.trim();
-    html = html.replace(/^[\s\S]*?```(?:html)?\s*\n/i, "");
-    html = html.replace(/\n?```[\s\S]*$/i, "");
-    html = html.trim();
+    // ```html ... ``` で囲まれている場合
+    if (html.includes("```")) {
+      html = html.replace(/^[\s\S]*?```(?:html)?\s*\n?/i, "");
+      html = html.replace(/\n?```[\s\S]*$/i, "");
+      html = html.trim();
+    }
+    // <!DOCTYPE html> より前のテキストを除去
+    const doctypeIndex = html.indexOf("<!DOCTYPE");
+    if (doctypeIndex > 0) {
+      html = html.slice(doctypeIndex);
+    }
+
+    console.log(`[generate] response length: ${text.length} chars, html length: ${html.length} chars`);
+    console.log(`[generate] starts with: ${html.slice(0, 80)}`);
 
     res.json({ html });
   } catch (err) {
