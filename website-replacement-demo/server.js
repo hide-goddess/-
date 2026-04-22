@@ -13,6 +13,12 @@ app.use(express.static(path.join(__dirname, "public")));
 const PORT = process.env.PORT || 3000;
 const MODEL = process.env.GEMINI_MODEL || "gemini-2.0-flash-lite";
 
+const FALLBACK_MODELS = [
+  MODEL,
+  "gemini-2.0-flash",
+  "gemini-1.5-flash",
+];
+
 if (!process.env.GEMINI_API_KEY) {
   console.warn(
     "[warn] GEMINI_API_KEY が未設定です。.env ファイルに設定してください。"
@@ -96,18 +102,14 @@ function isTransientError(err) {
 }
 
 /**
- * Gemini にテキストプロンプトを投げ、応答テキストを返す。
- * 503 / 429 等の一時エラーに対しては指数バックオフで最大 4 回リトライする。
- * 待機時間: 1s → 2s → 4s → 8s (+ 最大500msのジッター)
+ * 1つのモデルに対して指数バックオフで最大 maxAttempts 回リトライする。
  */
-async function generateText(prompt, maxOutputTokens) {
-  const maxAttempts = 5; // 初回 + 4 リトライ
+async function tryModelWithRetry(model, prompt, maxOutputTokens, maxAttempts = 3) {
   let lastError;
-
   for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
       const response = await ai.models.generateContent({
-        model: MODEL,
+        model,
         contents: prompt,
         config: {
           maxOutputTokens,
@@ -115,7 +117,7 @@ async function generateText(prompt, maxOutputTokens) {
         },
       });
       if (attempt > 1) {
-        console.log(`[gemini] attempt ${attempt} succeeded`);
+        console.log(`[gemini] ${model} attempt ${attempt} succeeded`);
       }
       return response.text ?? "";
     } catch (err) {
@@ -126,11 +128,34 @@ async function generateText(prompt, maxOutputTokens) {
       const backoffMs =
         Math.pow(2, attempt - 1) * 1000 + Math.floor(Math.random() * 500);
       console.warn(
-        `[gemini] attempt ${attempt} failed (${err?.status ?? ""} ${
-          err?.message?.slice(0, 120) ?? ""
-        }) — retrying in ${backoffMs}ms`
+        `[gemini] ${model} attempt ${attempt} failed — retrying in ${backoffMs}ms`
       );
       await sleep(backoffMs);
+    }
+  }
+  throw lastError;
+}
+
+/**
+ * Gemini にテキストプロンプトを投げ、応答テキストを返す。
+ * 1つ目のモデルが全リトライ失敗したら、自動で次のモデルに切り替える。
+ * フォールバック順: GEMINI_MODEL → gemini-2.0-flash → gemini-1.5-flash
+ */
+async function generateText(prompt, maxOutputTokens) {
+  let lastError;
+
+  for (const model of FALLBACK_MODELS) {
+    try {
+      console.log(`[gemini] trying model: ${model}`);
+      return await tryModelWithRetry(model, prompt, maxOutputTokens);
+    } catch (err) {
+      lastError = err;
+      if (!isTransientError(err)) {
+        throw err;
+      }
+      console.warn(
+        `[gemini] ${model} exhausted all retries — falling back to next model`
+      );
     }
   }
   throw lastError;
@@ -267,5 +292,5 @@ app.post("/api/generate-replacement", async (req, res) => {
 
 app.listen(PORT, () => {
   console.log(`Website Replacement Demo → http://localhost:${PORT}`);
-  console.log(`Model: ${MODEL}`);
+  console.log(`Model: ${MODEL} (fallback: ${FALLBACK_MODELS.slice(1).join(" → ")})`);
 });
