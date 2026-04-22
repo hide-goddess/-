@@ -10,7 +10,7 @@
 
 - ブランチ: `claude/website-replacement-demo-9CIRC`
 - 作業ディレクトリ: `website-replacement-demo/`
-- 使用モデル: `gemini-2.5-flash`
+- 使用モデル: `gemini-2.0-flash-lite`
 - SDK: `@google/genai`
 - フレームワーク: Node.js + Express
 
@@ -65,7 +65,7 @@ notepad .env
 `.env` の内容:
 ```
 GEMINI_API_KEY=AIzaSy...      # Google AI Studio で発行したキー
-GEMINI_MODEL=gemini-2.5-flash
+GEMINI_MODEL=gemini-2.0-flash-lite
 PORT=3000
 ```
 
