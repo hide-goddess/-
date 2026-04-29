@@ -1,0 +1,729 @@
+/**
+ * CS生産性タブ G,H,I,J,K,L列 自動記入スクリプト（v16）
+ *
+ * 【処理内容】
+ *  G列 = B列（メンバー）と同じ
+ *  H列 = J列で特定したタスクタブの行のD列（中カテゴリ）
+ *  I列 = 空欄
+ *  J列 = B列のメンバー名でタスクタブG列の担当者と照合し、
+ *         合致する行のF列からE列の内容に類似するタスク名を抽出
+ *  K列 = F列（カテゴリー）と同じ
+ *  L列 = 頻度に応じたキャップ付き時間計算（下記参照）
+ *  C列「総時間」行 → G列のみ、H〜L空欄
+ *  データ末尾にメンバーごとのK列・L列合計一覧 + 全体合計を追加
+ *
+ * 【v16 変更点】
+ *  サマリーを月別に分割:
+ *    - A列の月情報（"12月","1月" 等）を自動判定し、月ごとにデータをグループ化
+ *    - 月別サマリー（各月ごとのメンバー別 K列合計・L列合計 + 月合計）をデータ末尾に出力
+ *    - その後に全体サマリー（全月合算）を出力
+ *
+ * 【v15 変更点】
+ *  L列の頻度キャップに新しい頻度タイプを追加:
+ *    - 開催1週前：単発 / 開催2週前：単発 → キャップなし。各行 = I列時間
+ *    - 3ヶ月1回 → cap=1（1回ならそのまま、2回以上なら1つに統一）
+ *    - 月初 / 月末 → cap=1（同上）
+ *    - 仕組み化 → cap=1（同上）
+ *    - 単発 → cap=1（同上）
+ *
+ * 【v14 変更点】
+ *  L列の計算ロジックを頻度キャップ方式に変更:
+ *    - 毎日 / 随時 / 空欄 / 不定期 → キャップなし。各行 = I列時間
+ *    - 週N / 月N / 年N / 隔週 → 同一タスクの出現回数が頻度数N以下なら
+ *      各行 = I列時間。N超過ならN回分の時間に統一（均等配分）
+ *    例: 月1タスクが3行ある → 各行 = I列時間 × (1/3)
+ *    例: 週2タスクが2行ある → 各行 = I列時間（2以下なのでそのまま）
+ *    例: 週2タスクが5行ある → 各行 = I列時間 × (2/5)
+ *
+ * 【v13 以前の変更点】
+ *  1. 全メンバーを名前エイリアス付きで定義し、各メンバーごとに
+ *     自分が担当するタスクから類似検索するように変更
+ *  2. 通常メンバー → 全タスク洗い出しタブのみから検索
+ *  3. 兼業メンバー（小林未侑、中村八重子、松元陸）→ 両タブから検索（従来通り）
+ *  4. L列が空欄の行はK列の実働時間を合計に含めない
+ */
+
+// ===== 設定 =====
+const CSP_CS_SHEET_NAME = "CS生産性";
+const CSP_TASK_SHEET_NAME = "全タスクの洗い出し";
+const CSP_EVENT_SHEET_NAME = "イベント運営_CTO用";
+const CSP_HEADER_ROW = 12;
+const CSP_DATA_START_ROW = 13;
+
+// 全メンバー定義（CS生産性タブB列の名前 → タスクタブG列で検索するエイリアス）
+const CSP_MEMBER_ALIASES = {
+  "田中春奈": ["はるな"],
+  "平松弥央菜": ["みおな"],
+  "小林陽香": ["える"],
+  "中田菜々子": ["中田菜々子", "ななこ"],
+  "久保梨生": ["リオ", "りお"],
+  "宇梶知恵": ["ともえ"],
+  "増子真也子": ["まあや", "増子真也子"],
+  "田中里奈": ["りな"],
+  "山下優花": ["山下優花", "優花"],
+  "佐藤大河": ["佐藤大河"],
+  "西田真優": ["mayu"],
+  "小林未侑": ["未侑", "小林未侑"],
+  "中村八重子": ["八重子", "NYaeko"],
+  "松元陸": ["Riku", "りく"]
+};
+
+// 兼業メンバー（全タスク洗い出し＋イベント運営_CTO用の両タブから検索）
+const CSP_DUAL_MEMBERS = ["小林未侑", "中村八重子", "松元陸"];
+
+/**
+ * メイン関数
+ */
+function fillCSProductivity() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+
+  const csSheet = ss.getSheetByName(CSP_CS_SHEET_NAME);
+  const taskSheet = ss.getSheetByName(CSP_TASK_SHEET_NAME);
+  const eventSheet = ss.getSheetByName(CSP_EVENT_SHEET_NAME);
+
+  if (!csSheet) { Logger.log("エラー: 「" + CSP_CS_SHEET_NAME + "」シートが見つかりません。"); return; }
+  if (!taskSheet) { Logger.log("エラー: 「" + CSP_TASK_SHEET_NAME + "」シートが見つかりません。"); return; }
+  if (!eventSheet) { Logger.log("エラー: 「" + CSP_EVENT_SHEET_NAME + "」シートが見つかりません。"); return; }
+
+  // ★★★ 最初にG〜L列を全クリア（前回実行分の残りを消す）★★★
+  const maxRows = csSheet.getMaxRows();
+  if (maxRows >= CSP_DATA_START_ROW) {
+    csSheet.getRange(CSP_DATA_START_ROW, 7, maxRows - CSP_DATA_START_ROW + 1, 6).clearContent();
+    SpreadsheetApp.flush(); // クリアを確定
+  }
+
+  // --- 全タスク洗い出しタブからデータ取得（A〜I列 = 9列） ---
+  const taskLastRow = taskSheet.getLastRow();
+  const taskData = taskSheet.getRange(2, 1, taskLastRow - 1, 9).getValues();
+
+  // --- イベント運用_CTO用タブからデータ取得（A〜I列 = 9列） ---
+  const eventLastRow = eventSheet.getLastRow();
+  const eventData = eventSheet.getRange(2, 1, eventLastRow - 1, 9).getValues();
+
+  // 全メンバーごとのタスクリストを構築
+  const memberTaskMap = {};
+  for (const memberName in CSP_MEMBER_ALIASES) {
+    const aliases = CSP_MEMBER_ALIASES[memberName];
+    const isDual = CSP_DUAL_MEMBERS.indexOf(memberName) !== -1;
+    memberTaskMap[memberName] = [];
+
+    // 全タスク洗い出しタブから検索（全メンバー共通）
+    for (let i = 0; i < taskData.length; i++) {
+      const assignee = String(taskData[i][6]).trim();
+      if (cspMatchAnyAlias(assignee, aliases)) {
+        memberTaskMap[memberName].push(cspBuildTaskObject(taskData[i], i, "task"));
+      }
+    }
+
+    // イベント運営_CTO用タブからも検索（兼業メンバーのみ）
+    if (isDual) {
+      for (let i = 0; i < eventData.length; i++) {
+        const assignee = String(eventData[i][6]).trim();
+        if (cspMatchAnyAlias(assignee, aliases)) {
+          memberTaskMap[memberName].push(cspBuildTaskObject(eventData[i], i, "event"));
+        }
+      }
+    }
+
+    const tabLabel = isDual ? "両タブ" : "全タスク洗い出し";
+    Logger.log(memberName + " の担当タスク数: " + memberTaskMap[memberName].length + " (" + tabLabel + ")");
+  }
+
+  // ★★★ クリア後にgetLastRow()で正確なA〜F列のデータ範囲を取得 ★★★
+  const csLastRow = csSheet.getLastRow();
+  if (csLastRow < CSP_DATA_START_ROW) { Logger.log("エラー: データ行がありません。"); return; }
+
+  const numRows = csLastRow - CSP_DATA_START_ROW + 1;
+  const csData = csSheet.getRange(CSP_DATA_START_ROW, 1, numRows, 6).getValues();
+
+  Logger.log("データ行数: " + numRows + " (行" + CSP_DATA_START_ROW + "〜" + csLastRow + ")");
+
+  // ==============================================================
+  // Pass 1: 各行のベストマッチを特定
+  // ==============================================================
+  const rowResults = [];
+  const memberTotals = {};
+  const memberOrder = [];
+  let currentMember = "";
+  let currentMonth = "";
+
+  for (let r = 0; r < csData.length; r++) {
+    const colA = csData[r][0];
+    const colB = String(csData[r][1]).trim();
+    const colC = String(csData[r][2]).trim();
+    const colE = String(csData[r][4]).trim();
+    const colF = String(csData[r][5]).trim();
+
+    // 【v16】月の追跡（A列から取得、空欄なら前の月を引き継ぐ）
+    const extractedMonth = cspExtractMonth(colA);
+    if (extractedMonth !== "") {
+      currentMonth = extractedMonth;
+    }
+
+    if (colB !== "") {
+      currentMember = colB;
+    }
+
+    if (colB === "" && colE === "") {
+      rowResults.push({ member: currentMember, month: currentMonth, colC: colC, colE: colE, colF: colF, bestMatch: null, isEmptyRow: true, isTotalRow: false });
+      continue;
+    }
+
+    if (colC.indexOf("総時間") !== -1) {
+      rowResults.push({ member: currentMember, month: currentMonth, colC: colC, colE: colE, colF: colF, bestMatch: null, isEmptyRow: false, isTotalRow: true });
+      continue;
+    }
+
+    // 検索対象のタスクリストを決定（メンバーごとに自分の担当タスクから検索）
+    let searchTasks = memberTaskMap[currentMember] || [];
+    if (searchTasks.length === 0) {
+      Logger.log("警告: 「" + currentMember + "」のタスクが見つかりません。エイリアス未登録の可能性があります。");
+    }
+
+    let bestMatch = null;
+    let bestScore = 0;
+
+    if (colE !== "") {
+      for (let t = 0; t < searchTasks.length; t++) {
+        const score = cspCalculateSimilarity(colE, searchTasks[t].taskName, colC, searchTasks[t]);
+        if (score > bestScore) {
+          bestScore = score;
+          bestMatch = searchTasks[t];
+        }
+      }
+    }
+
+    if (bestScore < 0.2 && colC !== "") {
+      for (let t = 0; t < searchTasks.length; t++) {
+        const score = cspCalculateSimilarity(colC, searchTasks[t].taskName, colC, searchTasks[t]);
+        if (score > bestScore) {
+          bestScore = score;
+          bestMatch = searchTasks[t];
+        }
+      }
+    }
+
+    rowResults.push({ member: currentMember, month: currentMonth, colC: colC, colE: colE, colF: colF, bestMatch: bestMatch, isEmptyRow: false, isTotalRow: false });
+  }
+
+  // ==============================================================
+  // Pass 2: メンバー×タスク名ごとの出現回数をカウント
+  // ==============================================================
+  const taskOccurrences = {};
+  for (let r = 0; r < rowResults.length; r++) {
+    const res = rowResults[r];
+    if (res.isEmptyRow || res.isTotalRow || !res.bestMatch) continue;
+    const key = res.member + "|" + res.bestMatch.taskName;
+    taskOccurrences[key] = (taskOccurrences[key] || 0) + 1;
+  }
+
+  // ==============================================================
+  // Pass 3: 出力を生成（L列は頻度キャップを適用）
+  // ==============================================================
+  const output = [];
+  // 【v16】月別集計用
+  const monthStats = {};   // { month: { memberTotals, memberOrder } }
+  const monthOrder = [];   // 月の出現順序
+
+  for (let r = 0; r < rowResults.length; r++) {
+    const res = rowResults[r];
+
+    if (res.isEmptyRow) {
+      output.push(["", "", "", "", "", ""]);
+      continue;
+    }
+
+    if (res.isTotalRow) {
+      output.push([res.member, "", "", "", "", ""]);
+      continue;
+    }
+
+    const colG = res.member;
+    const colH = res.bestMatch ? res.bestMatch.midCategory : "";
+    const colI = "";
+    const colJ = res.bestMatch ? res.bestMatch.taskName : "";
+    const colK = res.colF;
+
+    // 【v14】L列 = 頻度キャップ方式
+    // 毎日・随時・空欄・不定期 → 各行にI列時間をそのまま
+    // 週N・月N・年N・隔週 → 出現回数がN以下ならそのまま、N超過ならN回分に統一
+    let colL = "";
+    if (res.bestMatch && res.bestMatch.estimatedTime !== "") {
+      const rawMinutes = cspParseTimeToMinutes(res.bestMatch.estimatedTime);
+      const cap = cspGetFrequencyCap(res.bestMatch.frequency);
+      const key = res.member + "|" + res.bestMatch.taskName;
+      const occurrences = taskOccurrences[key] || 1;
+
+      if (cap === -1) {
+        // 毎日・随時・空欄・不定期 → キャップなし、各行にI列時間をそのまま
+        colL = cspFormatMinutesToTime(rawMinutes);
+      } else if (occurrences <= cap) {
+        // 出現回数が頻度以下 → 各行にI列時間をそのまま
+        colL = cspFormatMinutesToTime(rawMinutes);
+      } else {
+        // 出現回数が頻度を超過 → キャップ適用（cap回分の時間をoccurrences行に均等配分）
+        const adjustedMinutes = (rawMinutes * cap) / occurrences;
+        colL = cspFormatMinutesToTime(adjustedMinutes);
+      }
+    }
+
+    output.push([colG, colH, colI, colJ, colK, colL]);
+
+    if (res.member !== "") {
+      if (!memberTotals[res.member]) {
+        memberTotals[res.member] = { kMin: 0, lMin: 0 };
+        memberOrder.push(res.member);
+      }
+
+      // L列に時間がある行のみK列を合計に含める
+      if (colL !== "" && colL !== "0m") {
+        memberTotals[res.member].kMin += cspParseTimeToMinutes(res.colF);
+      }
+      memberTotals[res.member].lMin += cspParseTimeToMinutes(colL);
+
+      // 【v16】月別の集計追跡
+      if (res.month !== "") {
+        if (!monthStats[res.month]) {
+          monthStats[res.month] = { memberTotals: {}, memberOrder: [] };
+          monthOrder.push(res.month);
+        }
+        const ms = monthStats[res.month];
+        if (!ms.memberTotals[res.member]) {
+          ms.memberTotals[res.member] = { kMin: 0, lMin: 0 };
+          ms.memberOrder.push(res.member);
+        }
+        if (colL !== "" && colL !== "0m") {
+          ms.memberTotals[res.member].kMin += cspParseTimeToMinutes(res.colF);
+        }
+        ms.memberTotals[res.member].lMin += cspParseTimeToMinutes(colL);
+      }
+    }
+  }
+
+  // ==============================================================
+  // 【v16】月別サマリー（各月ごとのメンバー別集計 + 月合計）
+  // ==============================================================
+
+  for (let mi = 0; mi < monthOrder.length; mi++) {
+    const month = monthOrder[mi];
+    const ms = monthStats[month];
+
+    output.push(["", "", "", "", "", ""]);
+    output.push(["【" + month + "】", "", "", "合計区分", "K列合計", "L列合計"]);
+
+    let monthGrandKMin = 0;
+    let monthGrandLMin = 0;
+
+    for (let m = 0; m < ms.memberOrder.length; m++) {
+      const name = ms.memberOrder[m];
+      const totals = ms.memberTotals[name];
+      const kFormatted = cspFormatMinutesToTime(totals.kMin);
+      const lFormatted = cspFormatMinutesToTime(totals.lMin);
+
+      output.push([name, "", "", name + " 合計", kFormatted, lFormatted]);
+
+      monthGrandKMin += totals.kMin;
+      monthGrandLMin += totals.lMin;
+
+      Logger.log(month + " " + name + " 合計: K=" + kFormatted + " L=" + lFormatted);
+    }
+
+    const mgkFormatted = cspFormatMinutesToTime(monthGrandKMin);
+    const mglFormatted = cspFormatMinutesToTime(monthGrandLMin);
+    output.push(["", "", "", month + " 全体合計", mgkFormatted, mglFormatted]);
+    Logger.log(month + " 全体合計: K=" + mgkFormatted + " L=" + mglFormatted);
+  }
+
+  // ==============================================================
+  // 全体サマリー（全月合算のメンバー別合計 + 全体合計）
+  // ==============================================================
+
+  output.push(["", "", "", "", "", ""]);
+  output.push(["【全体】", "", "", "合計区分", "K列合計", "L列合計"]);
+
+  let grandKMin = 0;
+  let grandLMin = 0;
+
+  for (let m = 0; m < memberOrder.length; m++) {
+    const name = memberOrder[m];
+    const totals = memberTotals[name];
+    const kFormatted = cspFormatMinutesToTime(totals.kMin);
+    const lFormatted = cspFormatMinutesToTime(totals.lMin);
+
+    output.push([name, "", "", name + " 合計", kFormatted, lFormatted]);
+
+    grandKMin += totals.kMin;
+    grandLMin += totals.lMin;
+
+    Logger.log("全体 " + name + " 合計: K=" + kFormatted + " L=" + lFormatted);
+  }
+
+  const grandKFormatted = cspFormatMinutesToTime(grandKMin);
+  const grandLFormatted = cspFormatMinutesToTime(grandLMin);
+  output.push(["", "", "", "全体合計", grandKFormatted, grandLFormatted]);
+  Logger.log("全体合計: K=" + grandKFormatted + " L=" + grandLFormatted);
+
+  // ==============================================================
+  // G〜L列に一括書き込み
+  // ==============================================================
+  if (output.length > 0) {
+    csSheet.getRange(CSP_DATA_START_ROW, 7, output.length, 6).setValues(output);
+    Logger.log("書き込み完了: 行" + CSP_DATA_START_ROW + "〜" + (CSP_DATA_START_ROW + output.length - 1) + " (" + output.length + "行)");
+  }
+
+  Logger.log("完了！ データ行数: " + numRows + " | 出力行数: " + output.length + " | メンバー数: " + memberOrder.length);
+}
+
+// ================================================================
+// タスクオブジェクト構築ヘルパー
+// ================================================================
+
+/**
+ * タスクデータ行からタスクオブジェクトを構築する
+ * @param {Array} row - スプレッドシートの行データ（A〜I列）
+ * @param {number} rowIndex - 行インデックス
+ * @param {string} source - データソース ("task" or "event")
+ * @return {Object} タスクオブジェクト
+ */
+function cspBuildTaskObject(row, rowIndex, source) {
+  const assigneeStr = String(row[6]).trim(); // G列（担当者）
+  const assigneeCount = cspCountAssignees(assigneeStr);
+  return {
+    rowIndex: rowIndex,
+    source: source,
+    largeCategory: String(row[2]).trim(),  // C列（大カテゴリ）
+    midCategory: String(row[3]).trim(),    // D列（中カテゴリ）
+    smallCategory: String(row[4]).trim(),  // E列（小カテゴリ）
+    taskName: String(row[5]).trim(),       // F列（タスク名）
+    assignee: assigneeStr,
+    assigneeCount: assigneeCount,
+    frequency: String(row[7]).trim(),      // H列（頻度）
+    estimatedTime: String(row[8]).trim()   // I列（推定時間）
+  };
+}
+
+/**
+ * 担当者文字列から人数をカウントする
+ * カンマ、改行、「・」、スラッシュ区切りに対応
+ * @param {string} assigneeStr - 担当者文字列（例: "はるな, りく" や "はるな・りく"）
+ * @return {number} 担当者人数（最低1）
+ */
+function cspCountAssignees(assigneeStr) {
+  if (!assigneeStr) return 1;
+  // カンマ、改行、「・」、スラッシュ、全角スラッシュで分割
+  const parts = assigneeStr.split(/[,、\n\r・\/／]+/);
+  let count = 0;
+  for (let i = 0; i < parts.length; i++) {
+    if (parts[i].trim() !== "") count++;
+  }
+  return count > 0 ? count : 1;
+}
+
+/**
+ * 担当者文字列にいずれかのエイリアスが含まれるかチェック
+ * @param {string} assigneeStr - 担当者文字列
+ * @param {Array<string>} aliases - エイリアスの配列
+ * @return {boolean}
+ */
+function cspMatchAnyAlias(assigneeStr, aliases) {
+  if (!assigneeStr) return false;
+  for (let i = 0; i < aliases.length; i++) {
+    if (assigneeStr.indexOf(aliases[i]) !== -1) return true;
+  }
+  return false;
+}
+
+// ================================================================
+// 月抽出ヘルパー（v16 新規）
+// ================================================================
+
+/**
+ * A列の値から月ラベルを抽出する
+ * Date型、"12月"、"2024年12月"、数値(1〜12) に対応
+ * @param {*} value - A列のセル値
+ * @return {string} 月ラベル（例: "12月"）。判定不能なら空文字
+ */
+function cspExtractMonth(value) {
+  if (!value) return "";
+  // Date型（Google Sheetsの日付セル）
+  if (value instanceof Date && !isNaN(value.getTime())) {
+    return (value.getMonth() + 1) + "月";
+  }
+  var s = String(value).trim();
+  if (s === "") return "";
+  // "N月" パターン（年付きでもOK: "2024年12月" → "12月"）
+  var monthMatch = s.match(/(\d{1,2})月/);
+  if (monthMatch) return monthMatch[1] + "月";
+  // 純粋な数値（1〜12）
+  var num = parseInt(s, 10);
+  if (!isNaN(num) && num >= 1 && num <= 12) return num + "月";
+  // それ以外はそのまま返す（カスタムラベル対応）
+  return s;
+}
+
+// ================================================================
+// 時間パース・フォーマット関数
+// ================================================================
+
+function cspParseTimeToMinutes(timeStr) {
+  if (!timeStr) return 0;
+  const str = String(timeStr).trim().toLowerCase();
+  if (str === "" || str === "0") return 0;
+  let totalMinutes = 0;
+  const hMatch = str.match(/([\d.]+)\s*h/);
+  const mMatch = str.match(/([\d.]+)\s*m/);
+  if (hMatch) totalMinutes += parseFloat(hMatch[1]) * 60;
+  if (mMatch) totalMinutes += parseFloat(mMatch[1]);
+  if (!hMatch && !mMatch) {
+    const numOnly = parseFloat(str);
+    if (!isNaN(numOnly)) totalMinutes = numOnly * 60;
+  }
+  return totalMinutes;
+}
+
+function cspFormatMinutesToTime(minutes) {
+  if (minutes === 0) return "0m";
+  const hours = Math.floor(minutes / 60);
+  const mins = Math.round(minutes % 60);
+  if (hours > 0 && mins > 0) return hours + "h" + mins + "m";
+  if (hours > 0) return hours + "h";
+  return mins + "m";
+}
+
+// ================================================================
+// 頻度キャップ関数（v14 新規）
+// ================================================================
+
+/**
+ * 頻度文字列からキャップ値（上限出現回数）を取得する
+ *
+ * 【ルール】
+ *   毎日           → -1（キャップなし）
+ *   随時 / 不定期 / 都度 → -1（キャップなし）
+ *   空欄           → -1（キャップなし）
+ *   開催1週前：単発  → -1（キャップなし）
+ *   開催2週前：単発  → -1（キャップなし）
+ *   隔週（週4）     → 4
+ *   週N            → N
+ *   月N（※月初・月末を除く） → N
+ *   年N            → N
+ *   3ヶ月1回       → 1
+ *   月初           → 1
+ *   月末           → 1
+ *   仕組み化       → 1
+ *   単発           → 1
+ *
+ * @param {string} freqStr - 頻度文字列
+ * @return {number} キャップ値（-1 = 無制限）
+ */
+function cspGetFrequencyCap(freqStr) {
+  if (!freqStr) return -1;
+  const s = String(freqStr).trim().toLowerCase().replace(/\s+/g, "");
+  if (s === "") return -1;
+
+  // 毎日 → キャップなし
+  if (s.indexOf("毎日") !== -1) return -1;
+
+  // 随時・不定期・都度 → キャップなし
+  if (s.indexOf("随時") !== -1 || s.indexOf("不定期") !== -1 || s.indexOf("都度") !== -1) return -1;
+
+  // 開催1週前：単発 / 開催2週前：単発 → キャップなし（※「単発」より先に判定）
+  if (s.indexOf("開催1週前") !== -1) return -1;
+  if (s.indexOf("開催2週前") !== -1) return -1;
+
+  // 3ヶ月1回 → cap=1（1回ならそのまま、2回以上なら1つに統一）
+  if (s.indexOf("3ヶ月1回") !== -1 || s.indexOf("3ヶ月1") !== -1) return 1;
+
+  // 月初 → cap=1（※「月N」より先に判定）
+  if (s.indexOf("月初") !== -1) return 1;
+
+  // 月末 → cap=1（※「月N」より先に判定）
+  if (s.indexOf("月末") !== -1) return 1;
+
+  // 隔週 → 4（隔週（週4）として扱う）
+  if (s.indexOf("隔週") !== -1) return 4;
+
+  // 週N → N
+  const weekMatch = s.match(/週(\d+)/);
+  if (weekMatch) return parseInt(weekMatch[1], 10);
+
+  // 月N → N
+  const monthMatch = s.match(/月(\d+)/);
+  if (monthMatch) return parseInt(monthMatch[1], 10);
+
+  // 年N → N
+  const yearMatch = s.match(/年(\d+)/);
+  if (yearMatch) return parseInt(yearMatch[1], 10);
+
+  // 仕組み化 → cap=1（1回ならそのまま、2回以上なら1つに統一）
+  if (s.indexOf("仕組み化") !== -1) return 1;
+
+  // 単発 → cap=1（1回ならそのまま、2回以上なら1つに統一）
+  if (s.indexOf("単発") !== -1) return 1;
+
+  // デフォルト → キャップなし
+  return -1;
+}
+
+// ================================================================
+// 頻度→月あたり回数 変換関数（旧バージョン互換用に残置）
+// ================================================================
+
+/**
+ * H列の頻度文字列を月あたりの回数に変換する
+ *
+ * 【変換ルール】
+ *   毎日       → 20（月の営業日数）
+ *   週5 / 週5回 → 20（5日×4週）
+ *   週4 / 週4回 → 16（4日×4週）
+ *   週3 / 週3回 → 12（3日×4週）
+ *   週2 / 週2回 → 8 （2日×4週）
+ *   週1 / 週1回 → 4 （1日×4週）
+ *   隔週       → 2 （月2回）
+ *   月1 / 月1回 → 1
+ *   月2 / 月2回 → 2
+ *   月3 / 月3回 → 3
+ *   月4 / 月4回 → 4
+ *   年1 / 年1回 → 1/12 ≒ 0.083
+ *   年2 / 年2回 → 2/12 ≒ 0.167
+ *   随時 / 不定期 / 都度 → 1（月1回相当として扱う）
+ *   空欄 / 不明  → 1（デフォルト: 月1回）
+ *
+ * @param {string} freqStr - 頻度文字列（例: "毎日", "週1", "月2"）
+ * @return {number} 月あたりの回数
+ */
+function cspParseFrequencyToMonthly(freqStr) {
+  if (!freqStr) return 1;
+  const s = String(freqStr).trim().toLowerCase().replace(/\s+/g, "");
+  if (s === "" ) return 1;
+
+  // 毎日
+  if (s.indexOf("毎日") !== -1) return 20;
+
+  // 週N / 週N回
+  const weekMatch = s.match(/週(\d+)/);
+  if (weekMatch) return parseInt(weekMatch[1], 10) * 4;
+
+  // 隔週
+  if (s.indexOf("隔週") !== -1) return 2;
+
+  // 月N / 月N回
+  const monthMatch = s.match(/月(\d+)/);
+  if (monthMatch) return parseInt(monthMatch[1], 10);
+
+  // 年N / 年N回
+  const yearMatch = s.match(/年(\d+)/);
+  if (yearMatch) return parseInt(yearMatch[1], 10) / 12;
+
+  // 随時・不定期・都度 → 月1回相当
+  if (s.indexOf("随時") !== -1 || s.indexOf("不定期") !== -1 || s.indexOf("都度") !== -1) return 1;
+
+  // デフォルト
+  return 1;
+}
+
+// ================================================================
+// 類似度計算関数群
+// ================================================================
+
+function cspCalculateSimilarity(sourceText, taskName, csCategory, task) {
+  if (!sourceText || !taskName) return 0;
+  const src = cspNormalizeText(sourceText);
+  const tgt = cspNormalizeText(taskName);
+  if (src === tgt) return 1.0;
+  if (src.indexOf(tgt) !== -1 || tgt.indexOf(src) !== -1) return 0.9;
+  const srcTokens = cspTokenize(src);
+  const tgtTokens = cspTokenize(tgt);
+  const keywordScore = cspJaccardSimilarity(srcTokens, tgtTokens);
+  const bigramScore = cspBigramSimilarity(src, tgt);
+  let categoryBonus = 0;
+  if (csCategory) {
+    const normalizedCat = cspNormalizeText(csCategory);
+    const normalizedMid = cspNormalizeText(task.midCategory);
+    const normalizedLarge = cspNormalizeText(task.largeCategory);
+    if (normalizedCat === normalizedMid || normalizedCat === normalizedLarge) categoryBonus = 0.15;
+    else if (normalizedMid.indexOf(normalizedCat) !== -1 || normalizedCat.indexOf(normalizedMid) !== -1) categoryBonus = 0.1;
+  }
+  const domainBonus = cspCalculateDomainBonus(src, tgt);
+  return Math.min((keywordScore * 0.5) + (bigramScore * 0.3) + domainBonus + categoryBonus, 1.0);
+}
+
+function cspNormalizeText(text) {
+  if (!text) return "";
+  return String(text).toLowerCase().replace(/[\s　]+/g, "").replace(/[（）()「」【】]/g, "").replace(/[・、。,.\-\/]/g, "");
+}
+
+function cspTokenize(text) {
+  if (!text) return [];
+  const tokens = new Set();
+  for (let i = 0; i < text.length - 1; i++) tokens.add(text.substring(i, i + 2));
+  for (let i = 0; i < text.length - 2; i++) tokens.add(text.substring(i, i + 3));
+  return Array.from(tokens);
+}
+
+function cspJaccardSimilarity(setA, setB) {
+  if (setA.length === 0 && setB.length === 0) return 0;
+  const a = new Set(setA); const b = new Set(setB);
+  let intersection = 0;
+  a.forEach(function(item) { if (b.has(item)) intersection++; });
+  const union = a.size + b.size - intersection;
+  return union === 0 ? 0 : intersection / union;
+}
+
+function cspBigramSimilarity(str1, str2) {
+  if (!str1 || !str2) return 0;
+  const b1 = new Set(); const b2 = new Set();
+  for (let i = 0; i < str1.length - 1; i++) b1.add(str1.substring(i, i + 2));
+  for (let i = 0; i < str2.length - 1; i++) b2.add(str2.substring(i, i + 2));
+  let intersection = 0;
+  b1.forEach(function(bg) { if (b2.has(bg)) intersection++; });
+  const union = b1.size + b2.size - intersection;
+  return union === 0 ? 0 : intersection / union;
+}
+
+function cspCalculateDomainBonus(src, tgt) {
+  const dkw = {
+    "入学運営": ["入学", "クラス分け", "クラススタート", "ロール付与", "入室確認"],
+    "コンテンツ配信": ["アーカイブ", "格納", "配信", "ラジオ", "コンテンツ", "動画", "編集"],
+    "イベント": ["イベント", "オンライン", "グルコン", "ファシリ", "周知", "スケジュール調整"],
+    "カレンダー": ["カレンダー", "canva", "画像作成", "リッチメニュー", "ポータル"],
+    "週報情報共有": ["週報", "リマインド", "成果報告", "情報共有"],
+    "顧客対応": ["問い合わせ", "顧客対応", "クレーム", "返信", "対応"],
+    "解約退会": ["解約", "退会", "クーリングオフ", "返金", "保証"],
+    "スプシデータ": ["スプシ", "シート", "データ", "更新", "反映", "管理表"],
+    "LINE構築": ["line", "lステップ", "リッチメニュー", "配信設定", "フォーム"],
+    "マニュアル": ["マニュアル", "notion", "ドキュメント", "まとめ"],
+    "ASP外部": ["asp", "otonari", "ナハト", "youtube", "外部連携"],
+    "シフト": ["シフト", "入学式シフト"]
+  };
+  let bonus = 0;
+  for (const d in dkw) {
+    const kw = dkw[d]; let s = false, t = false;
+    for (let k = 0; k < kw.length; k++) { if (src.indexOf(kw[k]) !== -1) s = true; if (tgt.indexOf(kw[k]) !== -1) t = true; }
+    if (s && t) bonus = Math.max(bonus, 0.2);
+  }
+  return bonus;
+}
+
+// ================================================================
+// カスタムメニュー
+// ================================================================
+
+function cspOnOpen() {
+  SpreadsheetApp.getUi()
+    .createMenu("🔧 CS生産性ツール")
+    .addItem("G〜L列を自動記入", "fillCSProductivity")
+    .addItem("G〜L列をクリア", "cspClearOutputColumns")
+    .addToUi();
+}
+
+function cspClearOutputColumns() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const csSheet = ss.getSheetByName(CSP_CS_SHEET_NAME);
+  if (!csSheet) { Logger.log("シートが見つかりません。"); return; }
+  const lastRow = csSheet.getMaxRows();
+  if (lastRow >= CSP_DATA_START_ROW) {
+    csSheet.getRange(CSP_DATA_START_ROW, 7, lastRow - CSP_DATA_START_ROW + 1, 6).clearContent();
+    Logger.log("G〜L列をクリアしました。");
+  }
+}
